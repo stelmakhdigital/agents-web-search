@@ -1,0 +1,43 @@
+{
+  "name": "@agents-web-search/pi",
+  "version": "0.1.0",
+  "description": "Pi (earendil-works) adapter for @agents-web-search/core: a Pi extension that registers the core's web tools (pi.registerTool + typebox schemas + 50KB/2000-line truncate).",
+  "keywords": [
+    "pi",
+    "extension",
+    "web-search",
+    "agents-web-search"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agents-web-search/core": "file:../../.vendor/agents-web-search-core-0.1.0.tgz"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.28.1",
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.8"
+  }
+}

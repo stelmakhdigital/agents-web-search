@@ -1,0 +1,59 @@
+{
+  "name": "@agents-web-search/dsh",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness adapter for @agents-web-search/core: a cordis plugin that registers the core's multi-engine search + cached fetch providers (web seam) and the core's platform/history/browser tools.",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "plugin",
+    "web-search",
+    "agents-web-search"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./local-web.cordis.yml": "./local-web.cordis.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "local-web.cordis.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./local-web.cordis.yml"
+    }
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck:host": "node scripts/typecheck-host.mjs"
+  },
+  "dependencies": {
+    "@agents-web-search/core": "file:../../.vendor/agents-web-search-core-0.1.0.tgz"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-credentials": "*",
+    "@deepseek-ai/dsh-home-paths": "*",
+    "@deepseek-ai/dsh-launch-environment": "*",
+    "@deepseek-ai/dsh-settings": "*",
+    "@deepseek-ai/dsh-tools": "*",
+    "@deepseek-ai/dsh-web": "*",
+    "@deepseek-ai/schemastery": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.28.1",
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.8"
+  }
+}

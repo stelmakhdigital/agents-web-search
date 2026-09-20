@@ -1,0 +1,10 @@
+packages:
+  - 'packages/*'
+
+allowBuilds:
+  esbuild: true
+
+# Host peer deps (@deepseek-ai/*, @earendil-works/*) are provided by the host
+# deployments and are NOT in the npm registry — never auto-install them.
+autoInstallPeers: false
+strictPeerDependencies: false

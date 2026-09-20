@@ -1,0 +1,20 @@
+{
+  "name": "agents-web-search-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agent adapters for @agents-web-search/core: packages/dsh (DeepSeek Harness cordis plugin) and packages/pi (Pi extension). One package per agent; the core stays agent-agnostic (Q9).",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter \"./packages/*\" build",
+    "test": "pnpm -r --filter \"./packages/*\" test",
+    "typecheck": "pnpm -r --filter \"./packages/*\" typecheck",
+    "pack:core": "cd ../core-web-search && npm pack --pack-destination ../../agents-web-search/.vendor/"
+  }
+}

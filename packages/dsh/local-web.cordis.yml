@@ -1,0 +1,54 @@
+# Local-web overlay for the @agents-web-search/dsh plugin: the agent-agnostic
+# core's multi-engine search + cached fetch + platform/history tools for the
+# standard DSH deployment.
+#
+# This file is the package's DSH BUNDLE patch (see "dsh.bundle" in
+# package.json), so installing the package applies it automatically — no
+# manual --patch needed:
+#
+#   dsh plugin --profile <name> add npm:@agents-web-search/dsh
+#   # or a tarball: npm pack (in packages/dsh) → dsh plugin add ./...tgz
+#
+# The core stack (ddg/bing keyless search, cached fetch, platform + history
+# tools) is enabled; provider-native/API engines activate when their keys are
+# present (credentials domain, launch environment, or `providers.*.apiKey`).
+#
+# The `web_search` / `web_fetch` tools themselves come from the host
+# `tool-web` plugin — the adapter registers the PROVIDERS, not those tools
+# (ADR-002 §2). The adapter and DSH's built-in web packages are mutually
+# exclusive (duplicate provider id → explicit error at startup).
+
+- id: web
+  config:
+    searchProvider: multi
+    fetchProvider: cached-http
+
+- id: tool-web
+  config:
+    fetch: true
+    searchTimeoutMs: 60000
+    fetchTimeoutMs: 45000
+
+- insert:
+    - id: agents-web-search
+      name: '@agents-web-search/dsh'
+      config:
+        search:
+          engines: [ddg, bing]
+          mode: fallback
+          enrich:
+            enabled: true
+        fetch:
+          revalidate: true
+        platforms:
+          enabled: true
+          maxResults: 20
+        history:
+          history: true
+          cacheClear: true
+          stats: true
+        # The Playwright browser module is opt-in (off by default, Q8/ADR-005):
+        #   browser:
+        #     enabled: true
+        #     headless: true
+        #     approval: never   # 'never' | 'navigate' | 'all'
