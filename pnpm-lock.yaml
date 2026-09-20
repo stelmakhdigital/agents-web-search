@@ -8,12 +8,31 @@ importers:
 
   .: {}
 
+  packages/contract:
+    dependencies:
+      '@agents-web-search/core':
+        specifier: file:../../.vendor/agents-web-search-core-0.1.0.tgz
+        version: file:.vendor/agents-web-search-core-0.1.0.tgz
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.6
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.11(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0)
+
   packages/dsh:
     dependencies:
       '@agents-web-search/core':
         specifier: file:../../.vendor/agents-web-search-core-0.1.0.tgz
         version: file:.vendor/agents-web-search-core-0.1.0.tgz
     devDependencies:
+      '@agents-web-search/contract':
+        specifier: workspace:*
+        version: link:../contract
       '@types/node':
         specifier: ^24.0.0
         version: 24.13.6
@@ -36,6 +55,9 @@ importers:
         specifier: ^1.3.27
         version: 1.3.34
     devDependencies:
+      '@agents-web-search/contract':
+        specifier: workspace:*
+        version: link:../contract
       '@earendil-works/pi-coding-agent':
         specifier: ^0.86.0
         version: 0.86.0(ws@8.21.3)

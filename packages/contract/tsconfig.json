@@ -14,9 +14,8 @@
     "noUncheckedIndexedAccess": true,
     "baseUrl": ".",
     "paths": {
-      "@agents-web-search/contract": ["../contract/src/index.ts"],
       "@agents-web-search/core": ["../../../core-web-search/src/index.ts"]
     }
   },
-  "include": ["extensions/**/*.ts", "src/**/*.ts", "test/**/*.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts"]
 }
