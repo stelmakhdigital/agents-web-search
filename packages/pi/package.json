@@ -1,8 +1,9 @@
 {
   "name": "@agents-web-search/pi",
   "version": "0.1.0",
-  "description": "Pi (earendil-works) adapter for @agents-web-search/core: a Pi extension that registers the core's web tools (pi.registerTool + typebox schemas + 50KB/2000-line truncate).",
+  "description": "Pi (earendil-works) adapter for @agents-web-search/core: a Pi package whose extension registers the core's web tools (pi.registerTool + typebox schemas + 50KB/2000-line truncate).",
   "keywords": [
+    "pi-package",
     "pi",
     "extension",
     "web-search",
@@ -10,13 +11,15 @@
   ],
   "license": "MIT",
   "type": "module",
-  "main": "lib/index.js",
-  "exports": {
-    ".": "./lib/index.js",
-    "./package.json": "./package.json"
+  "main": "extensions/index.ts",
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ]
   },
   "files": [
-    "lib/index.js",
+    "extensions/**",
+    "src/**",
     "README.md",
     "LICENSE"
   ],
@@ -24,19 +27,20 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "node esbuild.config.mjs",
+    "build": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@agents-web-search/core": "file:../../.vendor/agents-web-search-core-0.1.0.tgz"
+    "@agents-web-search/core": "file:../../.vendor/agents-web-search-core-0.1.0.tgz",
+    "typebox": "^1.3.27"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
   },
   "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.86.0",
     "@types/node": "^24.0.0",
-    "esbuild": "^0.28.1",
     "typescript": "^5.6.0",
     "vitest": "^4.1.8"
   }

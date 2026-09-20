@@ -11,7 +11,11 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "forceConsistentCasingInFileNames": true,
-    "noUncheckedIndexedAccess": true
+    "noUncheckedIndexedAccess": true,
+    "baseUrl": ".",
+    "paths": {
+      "@agents-web-search/core": ["../../../core-web-search/src/index.ts"]
+    }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "types/**/*.d.ts"]
+  "include": ["extensions/**/*.ts", "src/**/*.ts", "test/**/*.ts"]
 }

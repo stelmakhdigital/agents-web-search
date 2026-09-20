@@ -2,9 +2,18 @@ packages:
   - 'packages/*'
 
 allowBuilds:
+  '@google/genai': false # dev-transitive (pi-coding-agent): no binary artifacts needed
   esbuild: true
+  protobufjs: false # dev-transitive (pi-coding-agent): postinstall is informational only
 
 # Host peer deps (@deepseek-ai/*, @earendil-works/*) are provided by the host
 # deployments and are NOT in the npm registry — never auto-install them.
 autoInstallPeers: false
+minimumReleaseAgeExclude:
+  - '@earendil-works/chord@0.86.0'
+  - '@earendil-works/pi-agent-core@0.86.0'
+  - '@earendil-works/pi-ai@0.86.0'
+  - '@earendil-works/pi-coding-agent@0.86.0'
+  - '@earendil-works/pi-telemetry@0.86.0'
+  - '@earendil-works/pi-tui@0.86.0'
 strictPeerDependencies: false
