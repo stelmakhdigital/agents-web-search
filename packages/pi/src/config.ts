@@ -76,6 +76,15 @@ export interface PiConfig {
     timeoutMs?: number
     /** Allow private/reserved network targets (SSRF opt-out). */
     allowPrivateNetworks?: boolean
+    /** PDF extraction (roadmap 5.1): application/pdf → markdown (local unpdf engine). */
+    pdf?: {
+      /** Enable PDF extraction. Default true. */
+      enabled?: boolean
+      /** Maximum PDF body size (bytes). Default 20 MiB. */
+      maxSizeBytes?: number
+      /** Maximum pages extracted (head-biased). Default 50. */
+      maxPages?: number
+    }
   }
   platforms?: {
     /** Register the `web_platform_search` tool. */
@@ -211,6 +220,15 @@ export function toCoreConfig(config: PiConfig): CoreConfig {
       ...(fetch.maxOutputChars !== undefined ? { maxOutputChars: fetch.maxOutputChars } : {}),
       ...(fetch.timeoutMs !== undefined ? { timeoutMs: fetch.timeoutMs } : {}),
       ...(fetch.allowPrivateNetworks !== undefined ? { allowPrivateNetworks: fetch.allowPrivateNetworks } : {}),
+      ...(fetch.pdf !== undefined
+        ? {
+            pdf: {
+              ...(fetch.pdf.enabled !== undefined ? { enabled: fetch.pdf.enabled } : {}),
+              ...(fetch.pdf.maxSizeBytes !== undefined ? { maxSizeBytes: fetch.pdf.maxSizeBytes } : {}),
+              ...(fetch.pdf.maxPages !== undefined ? { maxPages: fetch.pdf.maxPages } : {}),
+            },
+          }
+        : {}),
     },
     platforms: {
       ...(platforms.enabled !== undefined ? { enabled: platforms.enabled } : {}),

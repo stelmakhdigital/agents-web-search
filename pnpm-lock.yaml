@@ -74,7 +74,7 @@ importers:
 packages:
 
   '@agents-web-search/core@file:.vendor/agents-web-search-core-0.1.0.tgz':
-    resolution: {integrity: sha512-L+AEijUhv+1TJVs+2NKmlJGOC792ppxDtlPjgYN2GfaIJTlmDA/wN3N1HCYMaFr9UgS6VRX1yMq3Q6MXZjTF2g==, tarball: file:.vendor/agents-web-search-core-0.1.0.tgz}
+    resolution: {integrity: sha512-ZMgbi7EvD+HdS+IibnpSaTxAMYIo3/3arbRxR5wI0xpM4cqF3QO0sX6kyjXjRHlbI6qxllJERbU/Xcv06e4njQ==, tarball: file:.vendor/agents-web-search-core-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=22'}
 
@@ -1089,6 +1089,15 @@ packages:
     resolution: {integrity: sha512-/y4/bH9YNU5hi9NIrpOuvGXFcxrj3CMrV+/AYpowAYTpHn8gX/XPFjNy766FPoYY0miQhdW977JFWKGNhBdwyQ==}
     engines: {node: '>=22.19.0'}
 
+  unpdf@1.8.1:
+    resolution: {integrity: sha512-xkURhy2SoGpOIH0a1gLHNkASPIQYonadDJs2AQwPEfUakafeD9EA1WTWWsaR++gfTCXJpV27W7tU1nXuk82UKQ==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      '@napi-rs/canvas': ^0.1.69 || ^1.0.0
+    peerDependenciesMeta:
+      '@napi-rs/canvas':
+        optional: true
+
   vite@8.3.0:
     resolution: {integrity: sha512-lhZBVvEHefgE+HQZC9O7EBJgCU/nVzFNl7vkS4RE0APtWLP02/8QVIkQtzBxPquh7lq5/78NHipTj7ODQ6XuyQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -1217,8 +1226,11 @@ snapshots:
   '@agents-web-search/core@file:.vendor/agents-web-search-core-0.1.0.tgz':
     dependencies:
       cheerio: 1.2.0
+      unpdf: 1.8.1
     optionalDependencies:
       playwright: 1.63.0
+    transitivePeerDependencies:
+      - '@napi-rs/canvas'
 
   '@anthropic-ai/sdk@0.124.0':
     dependencies:
@@ -2241,6 +2253,8 @@ snapshots:
   undici@7.29.1: {}
 
   undici@8.10.2: {}
+
+  unpdf@1.8.1: {}
 
   vite@8.3.0(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0):
     dependencies:

@@ -25,11 +25,29 @@ config. Load it together with (not instead of) the built-in web packages —
 the plugin and the built-in stack are mutually exclusive
 (`WEB_DUPLICATE_PROVIDER`).
 
+## PDF fetch (core 5.1)
+
+`web_fetch` now extracts `application/pdf` responses to markdown (local
+`unpdf` engine, no API key). Config (`fetch.pdf`, all optional):
+
+```yaml
+fetch:
+  pdf:
+    enabled: true        # default
+    maxSizeBytes: 20971520   # default 20 MiB
+    maxPages: 50           # default, head-biased
+```
+
+Extracted PDFs are cached as text pages (no re-extraction on fresh hits).
+Note: the DSH `web_fetch` tool is host-owned (tool-web) — the core's
+`question` parameter (LLM answer) is not available for it; only the
+adapter-registered core tools expose it.
+
 ## Scripts
 
 ```sh
 pnpm build              # esbuild → lib/index.js (ESM, host deps external)
-pnpm test               # vitest (32 tests: schema/config/entry/host adapter)
+pnpm test               # vitest (44 tests: schema/config/entry/host adapter + host contract)
 pnpm typecheck          # tsc against the local type stubs (types/)
 pnpm typecheck:host     # STRICT check against the real DSH sources
                         # (requires DSH_HOST=/path/to/deepseek-harness with
@@ -42,5 +60,6 @@ pnpm typecheck:host     # STRICT check against the real DSH sources
   not rebuilt live yet).
 - The approval bridge (`host.approve`) tracks a single active tool exec per
   adapter instance (browser tools are `isConcurrencySafe: false`).
-- The `llm` HostAdapter member is not implemented (provider-native engine
-  injection lands with the curator, phase 5).
+- The `llm` HostAdapter member is not implemented in v0.1 — the core's
+  `web_fetch` `question` mode fails with `WEB_NOT_AVAILABLE` until the host
+  provides it (curator/engine injection, phase 5).

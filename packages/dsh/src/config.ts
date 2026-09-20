@@ -75,6 +75,15 @@ export interface Config {
     timeoutMs?: number
     /** Allow private/reserved network targets (SSRF opt-out). */
     allowPrivateNetworks?: boolean
+    /** PDF extraction (roadmap 5.1): application/pdf → markdown (local unpdf engine). */
+    pdf?: {
+      /** Enable PDF extraction. Default true. */
+      enabled?: boolean
+      /** Maximum PDF body size (bytes). Default 20 MiB. */
+      maxSizeBytes?: number
+      /** Maximum pages extracted (head-biased). Default 50. */
+      maxPages?: number
+    }
   }
   /** `web_platform_search` tool settings. */
   platforms?: {
@@ -190,8 +199,15 @@ export const Config: z<Config> = z.object({
       maxOutputChars: z.number().default(100_000),
       timeoutMs: z.number().default(30_000),
       allowPrivateNetworks: z.boolean().default(false),
+      pdf: z
+        .object({
+          enabled: z.boolean().default(true),
+          maxSizeBytes: z.number().default(20 * 1024 * 1024),
+          maxPages: z.number().default(50),
+        })
+        .default({ enabled: true, maxSizeBytes: 20 * 1024 * 1024, maxPages: 50 }),
     })
-    .default({ cacheTtlMs: 86_400_000, revalidate: true, maxOutputChars: 100_000, timeoutMs: 30_000, allowPrivateNetworks: false }),
+    .default({ cacheTtlMs: 86_400_000, revalidate: true, maxOutputChars: 100_000, timeoutMs: 30_000, allowPrivateNetworks: false, pdf: { enabled: true, maxSizeBytes: 20 * 1024 * 1024, maxPages: 50 } }),
   platforms: z
     .object({
       enabled: z.boolean().default(true),
@@ -322,6 +338,15 @@ export function toCoreConfig(config: Config): CoreConfig {
       ...(fetch.maxOutputChars !== undefined ? { maxOutputChars: fetch.maxOutputChars } : {}),
       ...(fetch.timeoutMs !== undefined ? { timeoutMs: fetch.timeoutMs } : {}),
       ...(fetch.allowPrivateNetworks !== undefined ? { allowPrivateNetworks: fetch.allowPrivateNetworks } : {}),
+      ...(fetch.pdf !== undefined
+        ? {
+            pdf: {
+              ...(fetch.pdf.enabled !== undefined ? { enabled: fetch.pdf.enabled } : {}),
+              ...(fetch.pdf.maxSizeBytes !== undefined ? { maxSizeBytes: fetch.pdf.maxSizeBytes } : {}),
+              ...(fetch.pdf.maxPages !== undefined ? { maxPages: fetch.pdf.maxPages } : {}),
+            },
+          }
+        : {}),
     },
     platforms: {
       ...(platforms.enabled !== undefined ? { enabled: platforms.enabled } : {}),

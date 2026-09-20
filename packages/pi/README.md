@@ -29,7 +29,7 @@ core tools (the DSH adapter leaves `web_search`/`web_fetch` to the host):
 | Tool | Purpose | Concurrency |
 |---|---|---|
 | `web_search` | Multi-engine search (DuckDuckGo + Bing keyless by default; Exa/Tavily/Brave/… when configured) | sequential |
-| `web_fetch` | Cached, SSRF-guarded page fetch as markdown | sequential |
+| `web_fetch` | Cached, SSRF-guarded page fetch as markdown; extracts PDFs locally (5.1); `question` param answers via the host LLM (needs `llm` host member) | sequential |
 | `web_platform_search` | GitHub / Reddit / YouTube / Bilibili / v2ex / RSS / … | parallel |
 | `web_history` | Recent searches/fetches from the local store | parallel |
 | `web_search_stats` | Cache/statistics counters | parallel |
@@ -54,7 +54,7 @@ All config is local. Secrets stay out of the file (env or explicit keys):
     "enrich": { "enabled": true, "fetchLimit": 6, "keep": 5 },
     "storePath": ""                   // default: <agentDir>/web-search/web.db
   },
-  "fetch": { "maxOutputChars": 100000, "revalidate": true, "allowPrivateNetworks": false },
+  "fetch": { "maxOutputChars": 100000, "revalidate": true, "allowPrivateNetworks": false, "pdf": { "enabled": true, "maxSizeBytes": 20971520, "maxPages": 50 } },
   "platforms": { "enabled": true },   // false hides web_platform_search
   "history": { "history": true, "cacheClear": true, "stats": true },
   "browser": {
@@ -97,7 +97,9 @@ executed silently.
   session UI).
 - Pi has no tool-unregistration API in v0.1 — disabled tools are filtered at
   registration time; a config switch change needs a restart to take effect.
-- The `llm` host member (curator LLM refetch) is not implemented (phase 5).
+- The `llm` host member (curator LLM refetch) is not implemented in v0.1 —
+  the core's `web_fetch` `question` mode fails with `WEB_NOT_AVAILABLE` until
+  the Pi runtime exposes an LLM client to extensions (phase 5).
 
 ## Development
 

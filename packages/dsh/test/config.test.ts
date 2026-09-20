@@ -40,7 +40,7 @@ describe('toCoreConfig (DSH config → CoreConfig)', () => {
 
   it('maps fetch, platforms, store and browser settings', () => {
     const mapped = toCoreConfig({
-      fetch: { cacheTtlMs: 1000, revalidate: false, maxOutputChars: 5000, timeoutMs: 999, allowPrivateNetworks: true },
+      fetch: { cacheTtlMs: 1000, revalidate: false, maxOutputChars: 5000, timeoutMs: 999, allowPrivateNetworks: true, pdf: { enabled: false, maxSizeBytes: 1_048_576, maxPages: 3 } },
       platforms: { enabled: false, maxResults: 5 },
       search: { storePath: '/tmp/custom-web.db' },
       browser: { enabled: true, headless: false, approval: 'all', maxConcurrentTabs: 2 },
@@ -51,6 +51,7 @@ describe('toCoreConfig (DSH config → CoreConfig)', () => {
       maxOutputChars: 5000,
       timeoutMs: 999,
       allowPrivateNetworks: true,
+      pdf: { enabled: false, maxSizeBytes: 1_048_576, maxPages: 3 },
     })
     expect(mapped.platforms).toEqual({ enabled: false, maxResults: 5 })
     expect(mapped.store).toEqual({ path: '/tmp/custom-web.db' })
