@@ -38,7 +38,7 @@ importers:
         version: file:.vendor/agents-web-search-core-1.0.0.tgz
     devDependencies:
       '@agents-web-search/contract':
-        specifier: workspace:*
+        specifier: file:../contract
         version: link:../contract
       '@types/node':
         specifier: ^24.0.0
@@ -63,7 +63,7 @@ importers:
         version: 1.3.34
     devDependencies:
       '@agents-web-search/contract':
-        specifier: workspace:*
+        specifier: file:../contract
         version: link:../contract
       '@earendil-works/pi-coding-agent':
         specifier: ^0.86.0
