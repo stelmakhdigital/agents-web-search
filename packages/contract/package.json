@@ -1,6 +1,6 @@
 {
   "name": "@agents-web-search/contract",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Internal host-contract test suite (ADR-002): shared assertions for every HostAdapter implementation (DSH, Pi, future agents). Not published.",
   "license": "MIT",
   "private": true,
@@ -15,7 +15,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@agents-web-search/core": "file:../../.vendor/agents-web-search-core-0.1.0.tgz"
+    "@agents-web-search/core": "file:../../.vendor/agents-web-search-core-1.0.0.tgz"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -11,8 +11,8 @@ importers:
   packages/contract:
     dependencies:
       '@agents-web-search/core':
-        specifier: file:../../.vendor/agents-web-search-core-0.1.0.tgz
-        version: file:.vendor/agents-web-search-core-0.1.0.tgz
+        specifier: file:../../.vendor/agents-web-search-core-1.0.0.tgz
+        version: file:.vendor/agents-web-search-core-1.0.0.tgz
     devDependencies:
       '@types/node':
         specifier: ^24.0.0
@@ -27,8 +27,8 @@ importers:
   packages/dsh:
     dependencies:
       '@agents-web-search/core':
-        specifier: file:../../.vendor/agents-web-search-core-0.1.0.tgz
-        version: file:.vendor/agents-web-search-core-0.1.0.tgz
+        specifier: file:../../.vendor/agents-web-search-core-1.0.0.tgz
+        version: file:.vendor/agents-web-search-core-1.0.0.tgz
     devDependencies:
       '@agents-web-search/contract':
         specifier: workspace:*
@@ -49,8 +49,8 @@ importers:
   packages/pi:
     dependencies:
       '@agents-web-search/core':
-        specifier: file:../../.vendor/agents-web-search-core-0.1.0.tgz
-        version: file:.vendor/agents-web-search-core-0.1.0.tgz
+        specifier: file:../../.vendor/agents-web-search-core-1.0.0.tgz
+        version: file:.vendor/agents-web-search-core-1.0.0.tgz
       typebox:
         specifier: ^1.3.27
         version: 1.3.34
@@ -73,9 +73,9 @@ importers:
 
 packages:
 
-  '@agents-web-search/core@file:.vendor/agents-web-search-core-0.1.0.tgz':
-    resolution: {integrity: sha512-CvBFCZ3r3BBzocnQ+TG6ITnZIyRkjmOhBQWhdwYvWpX8F5egMdNJZLUCukrzFGMzYrHC2knwPnWnqNgHbqeLCw==, tarball: file:.vendor/agents-web-search-core-0.1.0.tgz}
-    version: 0.1.0
+  '@agents-web-search/core@file:.vendor/agents-web-search-core-1.0.0.tgz':
+    resolution: {integrity: sha512-X3n33K/DLnwLHIK06CLpgDFhhYnBRkf7Msz6r89gpvf2JryluzijHzvC1OPK0WXlpWs01MxZTbncY+Hu6ow2ZQ==, tarball: file:.vendor/agents-web-search-core-1.0.0.tgz}
+    version: 1.0.0
     engines: {node: '>=22'}
 
   '@anthropic-ai/sdk@0.124.0':
@@ -1223,7 +1223,7 @@ packages:
 
 snapshots:
 
-  '@agents-web-search/core@file:.vendor/agents-web-search-core-0.1.0.tgz':
+  '@agents-web-search/core@file:.vendor/agents-web-search-core-1.0.0.tgz':
     dependencies:
       cheerio: 1.2.0
       unpdf: 1.8.1

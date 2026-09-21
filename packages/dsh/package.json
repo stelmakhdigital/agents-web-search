@@ -1,6 +1,6 @@
 {
   "name": "@agents-web-search/dsh",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "DeepSeek Harness adapter for @agents-web-search/core: a cordis plugin that registers the core's multi-engine search + cached fetch providers (web seam) and the core's platform/history/browser tools.",
   "keywords": [
     "deepseek-harness",
@@ -38,7 +38,7 @@
     "typecheck:host": "node scripts/typecheck-host.mjs"
   },
   "dependencies": {
-    "@agents-web-search/core": "file:../../.vendor/agents-web-search-core-0.1.0.tgz"
+    "@agents-web-search/core": "file:../../.vendor/agents-web-search-core-1.0.0.tgz"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "*",

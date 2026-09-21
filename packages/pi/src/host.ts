@@ -99,7 +99,7 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
   const lastCtx: { current: ExtensionContext | undefined } = { current: undefined }
 
   const host: HostAdapter = {
-    identity: { name: 'pi', version: '0.1.0' },
+    identity: { name: 'pi', version: '1.0.0' },
     config: coreConfig,
     paths: { stateDir, tempDir: join(stateDir, 'temp') },
 
