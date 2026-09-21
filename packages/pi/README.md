@@ -18,8 +18,8 @@ a git repo in **one command** (it clones into its install dir and runs
 ships inside it):
 
 ```sh
-pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.0.1   # user scope
-pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.0.1  # project scope
+pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.0.2   # user scope
+pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.0.2  # project scope
 pi list                                                # verify
 # update: pi update (for a pinned ref — fetch origin <ref>)
 ```
