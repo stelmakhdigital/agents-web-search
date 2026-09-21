@@ -1,0 +1,54 @@
+# Phase 6.1 CI: the adapters build against the core tarball built from the
+# sibling core-web-search repository (dev mode: file:../../.vendor/*.tgz).
+# Core is checked out and packed first; pnpm install runs WITHOUT
+# --frozen-lockfile because the rebuilt tarball changes the lockfile
+# integrity pin (file: dependency). DSH typecheck:host is local-only
+# (needs the full DSH checkout) and is not part of CI.
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  test:
+    name: core tarball + build + typecheck + test (dsh, pi, contract)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out core-web-search (sibling, for the .vendor tarball)
+        uses: actions/checkout@v4
+        with:
+          repository: stelmakhdigital/core-web-search
+          path: core-web-search
+
+      - name: Check out agents-web-search
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: core-web-search/package-lock.json
+
+      - name: Build the core tarball into .vendor/
+        run: |
+          cd core-web-search
+          npm ci --no-audit --no-fund
+          npm pack --pack-destination ../.vendor/ --no-audit --no-fund
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - name: "Install (no frozen lockfile — the file: tarball integrity pin is rebuilt)"
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build
+        run: pnpm -r run build
+
+      - name: Typecheck
+        run: pnpm -r run typecheck
+
+      - name: Test
+        run: pnpm -r run test
