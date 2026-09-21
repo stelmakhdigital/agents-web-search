@@ -4,6 +4,10 @@
 # --frozen-lockfile because the rebuilt tarball changes the lockfile
 # integrity pin (file: dependency). DSH typecheck:host is local-only
 # (needs the full DSH checkout) and is not part of CI.
+# GOTCHA (2026-09-21): the second checkout must use `clean: false` —
+# actions/checkout runs `git clean -ffdx` by default and would delete the
+# untracked core-web-search/ subdirectory, breaking setup-node's
+# cache-dependency-path (lock file "not resolved").
 name: ci
 
 on:
@@ -24,6 +28,15 @@ jobs:
 
       - name: Check out agents-web-search
         uses: actions/checkout@v4
+        with:
+          # actions/checkout runs `git clean -ffdx` by default, which would
+          # DELETE the untracked core-web-search/ subdirectory checked out
+          # above (it is not tracked by this repo). Without it,
+          # setup-node's `cache-dependency-path: core-web-search/package-
+          # lock.json` resolves to a missing file and the step fails with
+          # "Some specified paths were not resolved, unable to cache
+          # dependencies" (actions/setup-node: glob.hashFiles → empty).
+          clean: false
 
       - uses: actions/setup-node@v4
         with:
