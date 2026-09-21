@@ -25,7 +25,8 @@ pi list                                                # verify
 ```
 
 Dev mode (from a workspace checkout): `pi install /path/to/agents-web-search/packages/pi`,
-or copy the package dir to `~/.pi/agent/extensions/agents-web-search`
+or copy the extension dir (`packages/pi/agents-web-search`) to
+`~/.pi/agent/extensions/agents-web-search`
 (or point `settings.json` `extensions` at it), then `/reload` in a running
 session.
 

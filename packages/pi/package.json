@@ -1,6 +1,6 @@
 {
   "name": "@agents-web-search/pi",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Pi (earendil-works) adapter for @agents-web-search/core: a Pi package whose extension registers the core's web tools (pi.registerTool + typebox schemas + 50KB/2000-line truncate).",
   "keywords": [
     "pi-package",
@@ -11,14 +11,14 @@
   ],
   "license": "MIT",
   "type": "module",
-  "main": "extensions/index.ts",
+  "main": "agents-web-search/index.ts",
   "pi": {
     "extensions": [
-      "./extensions"
+      "./agents-web-search"
     ]
   },
   "files": [
-    "extensions/**",
+    "agents-web-search/**",
     "src/**",
     "README.md",
     "LICENSE"

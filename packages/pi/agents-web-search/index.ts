@@ -21,8 +21,11 @@
  * Config: `~/.pi/agent/web-search.json` (optional; absent ⇒ core defaults).
  * Secrets: process environment (e.g. `EXA_API_KEY`) or `providers.*.apiKey`.
  *
- * Install: `pi install npm:@agents-web-search/pi` (or copy to
- * `~/.pi/agent/extensions/` for development).
+ * Install (git channel, decision 2026-09-21):
+ * `pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.0.2`
+ * (one command — Pi clones the repo and runs `npm install`); dev:
+ * `pi install /path/to/agents-web-search/packages/pi` or copy this dir to
+ * `~/.pi/agent/extensions/agents-web-search`.
  *
  * @module @agents-web-search/pi
  */

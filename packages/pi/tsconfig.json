@@ -18,5 +18,5 @@
       "@agents-web-search/core": ["../../../core-web-search/src/index.ts"]
     }
   },
-  "include": ["extensions/**/*.ts", "src/**/*.ts", "test/**/*.ts"]
+  "include": ["agents-web-search/**/*.ts", "src/**/*.ts", "test/**/*.ts"]
 }

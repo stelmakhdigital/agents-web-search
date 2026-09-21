@@ -4,6 +4,24 @@
 версии пакетов синхронизированы (`dsh`, `pi`; `contract` — внутренний,
 private).
 
+## [1.0.2] — 2026-09-21
+
+Исправлен «кривой» нейминг Pi-расширения при git-установке (фидбэк
+пользователя 2026-09-21): entry `pi.extensions` указывал на каталог с
+генеральным именем `extensions`, и расширение идентифицировалось как
+`…/packages/pi/extensions`. Каталог переименован в
+`packages/pi/agents-web-search` (каноничное имя расширения, совпадает с
+dev-конвенцией Pi `~/.pi/agent/extensions/agents-web-search/`).
+
+### Изменено
+
+- `packages/pi/extensions/` → `packages/pi/agents-web-search/`
+  (`git mv`; манифесты root + `packages/pi/package.json`
+  (`main`/`pi.extensions`/`files`), tsconfig, тесты, README).
+- version: root `@agents-web-search/adapters` и `@agents-web-search/pi` →
+  `1.0.2` (+ identity pi). `@agents-web-search/dsh`/`contract` без
+  изменений — остаются 1.0.1.
+
 ## [1.0.1] — 2026-09-21
 
 Git-канал дистрибуции (решение пользователя 2026-09-21: пакеты **не

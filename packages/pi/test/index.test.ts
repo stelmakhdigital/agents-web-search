@@ -6,7 +6,7 @@ import { vi } from 'vitest'
 
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
-import extension from '../extensions/index.ts'
+import extension from '../agents-web-search/index.ts'
 import { CONFIG_FILE_NAME } from '../src/config.ts'
 
 describe('Pi extension entry (mocked ExtensionAPI)', () => {
