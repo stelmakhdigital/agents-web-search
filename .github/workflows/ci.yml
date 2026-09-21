@@ -1,13 +1,18 @@
 # Phase 6.1 CI: the adapters build against the core tarball built from the
 # sibling core-web-search repository (dev mode: file:../../.vendor/*.tgz).
-# Core is checked out and packed first; pnpm install runs WITHOUT
+# Core is packed from the sibling checkout; pnpm install runs WITHOUT
 # --frozen-lockfile because the rebuilt tarball changes the lockfile
 # integrity pin (file: dependency). DSH typecheck:host is local-only
 # (needs the full DSH checkout) and is not part of CI.
-# GOTCHA (2026-09-21): the second checkout must use `clean: false` —
-# actions/checkout runs `git clean -ffdx` by default and would delete the
-# untracked core-web-search/ subdirectory, breaking setup-node's
-# cache-dependency-path (lock file "not resolved").
+# GOTCHA (2026-09-21, actions/checkout v4, git-directory-helper.ts): a
+# checkout into a path WITHOUT an existing `.git` (the remove=true branch
+# of prepareExistingDirectory — NOT controlled by the `clean` flag) DELETES
+# ALL existing contents of that path. Therefore the ROOT repo must be
+# checked out FIRST (fresh workspace — nothing to lose); the sibling core
+# repo SECOND, into the non-existing core-web-search/ subdirectory. The
+# reverse order wipes core-web-search/ and setup-node fails with "Some
+# specified paths were not resolved, unable to cache dependencies"
+# (missing core-web-search/package-lock.json for cache-dependency-path).
 name: ci
 
 on:
@@ -20,23 +25,16 @@ jobs:
     name: core tarball + build + typecheck + test (dsh, pi, contract)
     runs-on: ubuntu-latest
     steps:
+      # ORDER MATTERS — see the GOTCHA note above: root repo first, sibling
+      # core repo second (into a fresh subdirectory).
+      - name: Check out agents-web-search
+        uses: actions/checkout@v4
+
       - name: Check out core-web-search (sibling, for the .vendor tarball)
         uses: actions/checkout@v4
         with:
           repository: stelmakhdigital/core-web-search
           path: core-web-search
-
-      - name: Check out agents-web-search
-        uses: actions/checkout@v4
-        with:
-          # actions/checkout runs `git clean -ffdx` by default, which would
-          # DELETE the untracked core-web-search/ subdirectory checked out
-          # above (it is not tracked by this repo). Without it,
-          # setup-node's `cache-dependency-path: core-web-search/package-
-          # lock.json` resolves to a missing file and the step fails with
-          # "Some specified paths were not resolved, unable to cache
-          # dependencies" (actions/setup-node: glob.hashFiles → empty).
-          clean: false
 
       - uses: actions/setup-node@v4
         with:
