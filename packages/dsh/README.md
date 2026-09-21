@@ -39,7 +39,11 @@ fetch:
 ```
 
 Extracted PDFs are cached as text pages (no re-extraction on fresh hits).
-Note: the DSH `web_fetch` tool is host-owned (tool-web) — the core's
+YouTube watch URLs (5.2) are enriched into a markdown document (oEmbed +
+meta description + public transcript) — config `fetch.video.enabled`
+(default `true`); the document is cached as a text page and works with the
+core `question` mode once the host provides an LLM client. Note: the DSH
+`web_fetch` tool is host-owned (tool-web) — the core's
 `question` parameter (LLM answer) is not available for it; only the
 adapter-registered core tools expose it.
 

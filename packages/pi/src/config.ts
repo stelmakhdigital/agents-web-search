@@ -85,6 +85,11 @@ export interface PiConfig {
       /** Maximum pages extracted (head-biased). Default 50. */
       maxPages?: number
     }
+    /** YouTube video enrichment (roadmap 5.2): watch URLs → markdown document. */
+    video?: {
+      /** Enable video enrichment. Default true. */
+      enabled?: boolean
+    }
   }
   platforms?: {
     /** Register the `web_platform_search` tool. */
@@ -229,6 +234,7 @@ export function toCoreConfig(config: PiConfig): CoreConfig {
             },
           }
         : {}),
+      ...(fetch.video !== undefined ? { video: { enabled: fetch.video.enabled } } : {}),
     },
     platforms: {
       ...(platforms.enabled !== undefined ? { enabled: platforms.enabled } : {}),

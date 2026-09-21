@@ -84,6 +84,11 @@ export interface Config {
       /** Maximum pages extracted (head-biased). Default 50. */
       maxPages?: number
     }
+    /** YouTube video enrichment (roadmap 5.2): watch URLs → markdown document. */
+    video?: {
+      /** Enable video enrichment. Default true. */
+      enabled?: boolean
+    }
   }
   /** `web_platform_search` tool settings. */
   platforms?: {
@@ -206,8 +211,13 @@ export const Config: z<Config> = z.object({
           maxPages: z.number().default(50),
         })
         .default({ enabled: true, maxSizeBytes: 20 * 1024 * 1024, maxPages: 50 }),
+      video: z
+        .object({
+          enabled: z.boolean().default(true),
+        })
+        .default({ enabled: true }),
     })
-    .default({ cacheTtlMs: 86_400_000, revalidate: true, maxOutputChars: 100_000, timeoutMs: 30_000, allowPrivateNetworks: false, pdf: { enabled: true, maxSizeBytes: 20 * 1024 * 1024, maxPages: 50 } }),
+    .default({ cacheTtlMs: 86_400_000, revalidate: true, maxOutputChars: 100_000, timeoutMs: 30_000, allowPrivateNetworks: false, pdf: { enabled: true, maxSizeBytes: 20 * 1024 * 1024, maxPages: 50 }, video: { enabled: true } }),
   platforms: z
     .object({
       enabled: z.boolean().default(true),
@@ -347,6 +357,7 @@ export function toCoreConfig(config: Config): CoreConfig {
             },
           }
         : {}),
+      ...(fetch.video !== undefined ? { video: { enabled: fetch.video.enabled } } : {}),
     },
     platforms: {
       ...(platforms.enabled !== undefined ? { enabled: platforms.enabled } : {}),

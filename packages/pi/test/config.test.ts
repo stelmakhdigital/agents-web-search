@@ -62,7 +62,7 @@ describe('toCoreConfig (Pi → core mapping)', () => {
         embedModel: 'm',
         storePath: '/tmp/x.db',
       },
-      fetch: { cacheTtlMs: 60_000, maxOutputChars: 1_000, allowPrivateNetworks: true, pdf: { enabled: false, maxSizeBytes: 2048, maxPages: 1 } },
+      fetch: { cacheTtlMs: 60_000, maxOutputChars: 1_000, allowPrivateNetworks: true, pdf: { enabled: false, maxSizeBytes: 2048, maxPages: 1 }, video: { enabled: false } },
       platforms: { enabled: false, maxResults: 5 },
       browser: { enabled: true, headless: false, approval: 'all', maxConcurrentTabs: 2 },
     })
@@ -77,7 +77,7 @@ describe('toCoreConfig (Pi → core mapping)', () => {
       enrich: { enabled: true, fetchLimit: 4, keep: 3 },
       embed: { endpoint: 'http://embed.test/v1', model: 'm' },
     })
-    expect(core.fetch).toEqual({ cacheTtlMs: 60_000, maxOutputChars: 1_000, allowPrivateNetworks: true, pdf: { enabled: false, maxSizeBytes: 2048, maxPages: 1 } })
+    expect(core.fetch).toEqual({ cacheTtlMs: 60_000, maxOutputChars: 1_000, allowPrivateNetworks: true, pdf: { enabled: false, maxSizeBytes: 2048, maxPages: 1 }, video: { enabled: false } })
     expect(core.platforms).toEqual({ enabled: false, maxResults: 5 })
     expect(core.browser).toEqual({ enabled: true, headless: false, approval: 'all', maxConcurrentTabs: 2 })
     expect(core.store).toEqual({ path: '/tmp/x.db' })
