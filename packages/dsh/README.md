@@ -42,7 +42,11 @@ Extracted PDFs are cached as text pages (no re-extraction on fresh hits).
 YouTube watch URLs (5.2) are enriched into a markdown document (oEmbed +
 meta description + public transcript) — config `fetch.video.enabled`
 (default `true`); the document is cached as a text page and works with the
-core `question` mode once the host provides an LLM client. Note: the DSH
+core `question` mode once the host provides an LLM client. GitHub URLs (5.3)
+are served without scraping: repository/tree/file pages from a shallow clone
+(`fetch.github`, clone cap `fetch.github.maxCloneBytes`, cached under
+`<stateDir>/github-clones`), PR/issue pages from the keyless GitHub REST API
+(public rate limit — `WEB_QUOTA` when exhausted). Note: the DSH
 `web_fetch` tool is host-owned (tool-web) — the core's
 `question` parameter (LLM answer) is not available for it; only the
 adapter-registered core tools expose it.

@@ -90,6 +90,15 @@ export interface PiConfig {
       /** Enable video enrichment. Default true. */
       enabled?: boolean
     }
+    /** GitHub enrichment (roadmap 5.3): repo/tree/blob → shallow clone; PR/issue → keyless API. */
+    github?: {
+      /** Enable GitHub enrichment. Default true. */
+      enabled?: boolean
+      /** Maximum clone size (bytes); oversized clones are deleted. Default 200 MiB. */
+      maxCloneBytes?: number
+      /** Maximum tree listing entries. Default 500. */
+      maxTreeEntries?: number
+    }
   }
   platforms?: {
     /** Register the `web_platform_search` tool. */
@@ -235,6 +244,15 @@ export function toCoreConfig(config: PiConfig): CoreConfig {
           }
         : {}),
       ...(fetch.video !== undefined ? { video: { enabled: fetch.video.enabled } } : {}),
+      ...(fetch.github !== undefined
+        ? {
+            github: {
+              ...(fetch.github.enabled !== undefined ? { enabled: fetch.github.enabled } : {}),
+              ...(fetch.github.maxCloneBytes !== undefined ? { maxCloneBytes: fetch.github.maxCloneBytes } : {}),
+              ...(fetch.github.maxTreeEntries !== undefined ? { maxTreeEntries: fetch.github.maxTreeEntries } : {}),
+            },
+          }
+        : {}),
     },
     platforms: {
       ...(platforms.enabled !== undefined ? { enabled: platforms.enabled } : {}),

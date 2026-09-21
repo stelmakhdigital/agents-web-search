@@ -89,6 +89,15 @@ export interface Config {
       /** Enable video enrichment. Default true. */
       enabled?: boolean
     }
+    /** GitHub enrichment (roadmap 5.3): repo/tree/blob → shallow clone; PR/issue → keyless API. */
+    github?: {
+      /** Enable GitHub enrichment. Default true. */
+      enabled?: boolean
+      /** Maximum clone size (bytes); oversized clones are deleted. Default 200 MiB. */
+      maxCloneBytes?: number
+      /** Maximum tree listing entries. Default 500. */
+      maxTreeEntries?: number
+    }
   }
   /** `web_platform_search` tool settings. */
   platforms?: {
@@ -216,8 +225,15 @@ export const Config: z<Config> = z.object({
           enabled: z.boolean().default(true),
         })
         .default({ enabled: true }),
+      github: z
+        .object({
+          enabled: z.boolean().default(true),
+          maxCloneBytes: z.number().default(200 * 1024 * 1024),
+          maxTreeEntries: z.number().default(500),
+        })
+        .default({ enabled: true, maxCloneBytes: 200 * 1024 * 1024, maxTreeEntries: 500 }),
     })
-    .default({ cacheTtlMs: 86_400_000, revalidate: true, maxOutputChars: 100_000, timeoutMs: 30_000, allowPrivateNetworks: false, pdf: { enabled: true, maxSizeBytes: 20 * 1024 * 1024, maxPages: 50 }, video: { enabled: true } }),
+    .default({ cacheTtlMs: 86_400_000, revalidate: true, maxOutputChars: 100_000, timeoutMs: 30_000, allowPrivateNetworks: false, pdf: { enabled: true, maxSizeBytes: 20 * 1024 * 1024, maxPages: 50 }, video: { enabled: true }, github: { enabled: true, maxCloneBytes: 200 * 1024 * 1024, maxTreeEntries: 500 } }),
   platforms: z
     .object({
       enabled: z.boolean().default(true),
@@ -358,6 +374,15 @@ export function toCoreConfig(config: Config): CoreConfig {
           }
         : {}),
       ...(fetch.video !== undefined ? { video: { enabled: fetch.video.enabled } } : {}),
+      ...(fetch.github !== undefined
+        ? {
+            github: {
+              ...(fetch.github.enabled !== undefined ? { enabled: fetch.github.enabled } : {}),
+              ...(fetch.github.maxCloneBytes !== undefined ? { maxCloneBytes: fetch.github.maxCloneBytes } : {}),
+              ...(fetch.github.maxTreeEntries !== undefined ? { maxTreeEntries: fetch.github.maxTreeEntries } : {}),
+            },
+          }
+        : {}),
     },
     platforms: {
       ...(platforms.enabled !== undefined ? { enabled: platforms.enabled } : {}),
