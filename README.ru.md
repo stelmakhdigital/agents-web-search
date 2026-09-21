@@ -3,10 +3,11 @@
 Адаптеры агентов для агностичного ядра веб-поиска
 [`@agents-web-search/core`](https://github.com/stelmakhdigital/core-web-search).
 
-Один npm-пакет на агента (`@agents-web-search/<agent>`); каждый пакет —
-тонкая реализация HostAdapter (ADR-002) поверх собственного
-extension-механизма хоста — вся логика search/fetch/store/platform живёт в
-ядре, никогда в адаптере.
+Один пакет на агента (`@agents-web-search/<agent>`; npm-идентификаторы
+сохранены, но пакеты **не публикуются в npm** — канал дистрибуции: git,
+решение 2026-09-21); каждый пакет — тонкая реализация HostAdapter
+(ADR-002) поверх собственного extension-механизма хоста — вся логика
+search/fetch/store/platform живёт в ядре, никогда в адаптере.
 
 > English: [`README.md`](README.md).
 
@@ -17,17 +18,26 @@ extension-механизма хоста — вся логика search/fetch/sto
 | `packages/dsh` → `@agents-web-search/dsh` | DeepSeek Harness | cordis-плагин: seam-провайдеры (`web`) + инструменты + settings-секция |
 | `packages/pi` → `@agents-web-search/pi` | Pi (earendil-works) | extension: `pi.registerTool` + JSON-конфиг + truncate 50KB/2000 строк |
 
-## Установка (roadmap 7.1)
+## Установка (git-канал, решение 2026-09-21)
+
+Клон самодостаточен: core-тарбол (pinned `v1.0.0`) лежит в репо
+(`.vendor/`) — установка работает офлайн.
+
+```sh
+git clone https://github.com/stelmakhdigital/agents-web-search.git
+```
 
 ### DSH
 
 ```sh
 # в DSH-профиле (каталог с package.json + pnpm-workspace.yaml):
-dsh plugin --profile <профиль> add npm:@agents-web-search/dsh
-# dev-режим (до публикации core в npm): file:-ссылка
-dsh plugin --profile <профиль> add file:<workspace>/agents-web-search/packages/dsh
+dsh plugin --profile <профиль> add file:/путь/к/agents-web-search/packages/dsh
 dsh --profile <профиль> --dump-config   # проверка: web seam patched (multi/cached-http)
 ```
+
+`dsh plugin add` — тонкий форвардер в `pnpm add` в каталоге профиля
+(подойдёт любой pnpm-спец); подпакет моно-репо ставится клоном + `file:`.
+Обновление: `git -C … pull` + `dsh plugin --profile <профиль> update`.
 
 Плагин регистрирует search/fetch-провайдеры ядра в seam `web`
 (id `multi`/`cached-http`) + адаптерские инструменты
@@ -41,8 +51,8 @@ dsh --profile <профиль> --dump-config   # проверка: web seam patc
 ### Pi
 
 ```sh
-pi install npm:@agents-web-search/pi      # user scope (~/.pi/agent/npm/)
-pi install -l npm:@agents-web-search/pi   # project scope (.pi/npm/)
+pi install /путь/к/agents-web-search/packages/pi      # user scope
+pi install -l /путь/к/agents-web-search/packages/pi   # project scope
 pi list
 ```
 

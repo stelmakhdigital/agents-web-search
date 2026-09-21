@@ -5,16 +5,22 @@ Pi (earendil-works) adapter for the agent-agnostic web-search core
 Distributed as a **Pi package**: a single TypeScript extension (jiti-loaded, no
 compilation step) that registers the core's web stack into the Pi runtime.
 
-**Status: v0.1.0** (roadmap 4.3–4.5) — search/fetch/platform/history tools,
-host-level 50KB/2000-line truncate, browser module with `ctx.ui.confirm`
-approval (fail-closed).
+**Status: v1.0.0** (released 2026-09-21, tag `v1.0.0`) — search/fetch/
+platform/history + extended fetch (PDF/YouTube/GitHub/curator),
+`get_search_content`, host-level 50KB/2000-line truncate, browser module
+with `ctx.ui.confirm` approval (fail-closed).
 
 ## Install
 
+Channel: **git** (decision 2026-09-21 — not published to npm). The repo
+is self-contained: the pinned core tarball (`.vendor/`) ships with it, so
+a fresh clone installs offline.
+
 ```sh
-pi install npm:@agents-web-search/pi      # user scope (~/.pi/agent/npm/)
-pi install -l npm:@agents-web-search/pi   # project scope (.pi/npm/)
-pi list                                   # verify
+git clone https://github.com/stelmakhdigital/agents-web-search.git
+pi install /path/to/agents-web-search/packages/pi      # user scope
+pi install -l /path/to/agents-web-search/packages/pi   # project scope
+pi list                                                # verify
 ```
 
 Dev mode (from a workspace checkout): copy the package dir to

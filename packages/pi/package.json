@@ -52,5 +52,10 @@
   "homepage": "https://github.com/stelmakhdigital/agents-web-search/tree/master/packages/pi#readme",
   "bugs": {
     "url": "https://github.com/stelmakhdigital/agents-web-search/issues"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    }
   }
 }

@@ -6,7 +6,14 @@ settings:
 
 importers:
 
-  .: {}
+  .:
+    dependencies:
+      '@agents-web-search/core':
+        specifier: file:./.vendor/agents-web-search-core-1.0.0.tgz
+        version: file:.vendor/agents-web-search-core-1.0.0.tgz
+      typebox:
+        specifier: ^1.3.27
+        version: 1.3.34
 
   packages/contract:
     dependencies:

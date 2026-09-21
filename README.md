@@ -27,21 +27,30 @@ pnpm install --store-dir .pnpm-store
 pnpm build && pnpm test && pnpm typecheck
 ```
 
-The core is referenced as a local tarball (`file:.vendor/core-*.tgz`); re-run
-`pnpm pack:core` whenever the core changes. Release mode swaps it for
-`@agents-web-search/core: ^<version>` from the npm registry.
+The core is referenced as a local tarball (`.vendor/agents-web-search-core-1.0.0.tgz`,
+committed to this repo so a fresh clone is self-contained and installs
+offline); re-run `pnpm pack:core` + re-commit the tarball whenever the
+core changes (channel: git — decision 2026-09-21, the packages are not
+published to npm).
 
-## Install (roadmap 7.1)
+## Install (git channel, decision 2026-09-21)
+
+```sh
+git clone https://github.com/stelmakhdigital/agents-web-search.git
+```
 
 ### DSH
 
 ```sh
 # in a DSH profile (a dir with package.json + pnpm-workspace.yaml):
-dsh plugin --profile <profile> add npm:@agents-web-search/dsh
-# dev mode (before the core is published to npm): a file: link
-dsh plugin --profile <profile> add file:<workspace>/agents-web-search/packages/dsh
+dsh plugin --profile <profile> add file:/path/to/agents-web-search/packages/dsh
 dsh --profile <profile> --dump-config   # verify: web seam patched (multi/cached-http)
 ```
+
+`dsh plugin add` is a thin forwarder to `pnpm add` in the profile
+directory (any pnpm spec works); a monorepo sub-package is installed via
+the clone + `file:` form. Update: `git -C … pull` +
+`dsh plugin --profile <profile> update`.
 
 The plugin registers the core's search/fetch providers into the `web` seam
 (ids `multi`/`cached-http`) plus the adapter tools
@@ -55,8 +64,8 @@ the pin resolves ambiguity) — see the Incompatibilities section.
 ### Pi
 
 ```sh
-pi install npm:@agents-web-search/pi      # user scope (~/.pi/agent/npm/)
-pi install -l npm:@agents-web-search/pi   # project scope (.pi/npm/)
+pi install /path/to/agents-web-search/packages/pi      # user scope
+pi install -l /path/to/agents-web-search/packages/pi   # project scope
 pi list
 ```
 

@@ -18,12 +18,16 @@ maps host ⇄ core (ADR-002). Everything runs against local state
 
 ## Install
 
+Channel: **git** (decision 2026-09-21 — not published to npm). The repo
+is self-contained: the pinned core tarball (`.vendor/`) ships with it, so
+a fresh clone installs offline.
+
 ```sh
+git clone https://github.com/stelmakhdigital/agents-web-search.git
 # in a DSH profile (a dir with package.json + pnpm-workspace.yaml):
-dsh plugin --profile <profile> add npm:@agents-web-search/dsh
-# dev mode (before the core is published to npm): a file: link
-dsh plugin --profile <profile> add file:<workspace>/agents-web-search/packages/dsh
+dsh plugin --profile <profile> add file:/path/to/agents-web-search/packages/dsh
 dsh --profile <profile> --dump-config   # verify: web seam patched (multi/cached-http)
+# update: git -C … pull + dsh plugin --profile <profile> update
 ```
 
 The built-in DSH web packages use different provider ids (`http`,
