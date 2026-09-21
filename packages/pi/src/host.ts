@@ -92,7 +92,11 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
   // The current tool-execution context (captured by the execute wrappers;
   // used by `approve`). v0.1 limitation: a single shared slot — browser
   // tools execute sequentially, read-only tools are harmless sharers.
+  // The active tool-execution context (restored after each tool — approval
+  // only routes through the running agent) and the LAST observed context
+  // (never reset — the LLM client works outside tool execution too).
   const ctxSlot: { current: ExtensionContext | undefined } = { current: undefined }
+  const lastCtx: { current: ExtensionContext | undefined } = { current: undefined }
 
   const host: HostAdapter = {
     identity: { name: 'pi', version: '0.1.0' },
@@ -105,7 +109,7 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
     registerTools: (specs: readonly ToolSpec[]) => {
       for (const spec of specs) {
         if (!toolEnabled(spec.name, config)) continue
-        pi.registerTool(toPiTool(spec, ctxSlot))
+        pi.registerTool(toPiTool(spec, ctxSlot, lastCtx))
       }
       // Pi has no tool-unregistration API in v0.1: the disposer is a no-op;
       // session_shutdown closes the stack (store/browser) instead.
@@ -140,6 +144,43 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
     // v0.1: no-op (Pi extension logging goes through the host console).
     log: () => {},
 
+    // Roadmap 5.4: auxiliary LLM via the Pi model registry (curator
+    // summaries, web_fetch question mode). Uses the latest tool-execution
+    // context (lastCtx — the newest tool-execution context, kept after the
+    // tool returns) — fail-closed before any tool has run or when the session
+    // has no model.
+    llm: {
+      async complete({ prompt, maxTokens, signal }) {
+        const ctx = lastCtx.current
+        if (ctx === undefined || ctx.model === undefined || ctx.modelRegistry === undefined) {
+          throw new CoreError(
+            'the LLM is unavailable: no Pi execution context or model has been observed yet',
+            'WEB_NOT_AVAILABLE',
+          )
+        }
+        const message = await ctx.modelRegistry.complete(
+          ctx.model,
+          {
+            messages: [{ role: 'user' as const, content: prompt, timestamp: Date.now() }],
+            ...(maxTokens !== undefined ? { maxTokens } : {}),
+            ...(signal !== undefined ? { signal } : {}),
+          },
+        )
+        const text = message.content
+          .map((block) => (block.type === 'text' ? block.text : ''))
+          .join('\n')
+          .trim()
+        if (text.length === 0) {
+          throw new CoreError('the Pi model returned an empty completion', 'WEB_NOT_AVAILABLE')
+        }
+        return {
+          text,
+          model: message.responseModel ?? message.model,
+          usage: { in: message.usage.input, out: message.usage.output },
+        }
+      },
+    },
+
     dispose: () => stack.dispose(),
   }
 
@@ -170,7 +211,11 @@ function toolEnabled(name: string, config: PiConfig): boolean {
 }
 
 /** Project one core `ToolSpec` to a Pi `ToolDefinition`. */
-function toPiTool(spec: ToolSpec, ctxSlot: { current: ExtensionContext | undefined }) {
+function toPiTool(
+  spec: ToolSpec,
+  ctxSlot: { current: ExtensionContext | undefined },
+  lastCtx: { current: ExtensionContext | undefined },
+) {
   return {
     name: spec.name,
     label: TOOL_LABELS[spec.name] ?? spec.name,
@@ -191,6 +236,7 @@ function toPiTool(spec: ToolSpec, ctxSlot: { current: ExtensionContext | undefin
     ) {
       const previousCtx = ctxSlot.current
       ctxSlot.current = ctx
+      lastCtx.current = ctx
       try {
         const controller = new AbortController()
         const onAbort = () => controller.abort()

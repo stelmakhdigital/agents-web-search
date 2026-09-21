@@ -128,6 +128,35 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
     expect(names).toEqual(['web_search', 'web_fetch', 'web_cache_clear'])
   })
 
+  it('exposes host.llm via the Pi model registry (roadmap 5.4)', async () => {
+    // Fail-closed before any tool execution has captured a context.
+    const { result: pristine } = build()
+    await expect(pristine.host.llm!.complete({ prompt: 'x' })).rejects.toThrow(/no Pi execution context or model/)
+
+    const { result, tools } = build()
+    const webHistory = tools.find(t => t.name === 'web_history')!
+    const complete = vi.fn(async () => ({
+      role: 'assistant',
+      content: [{ type: 'text', text: 'pi summary' }],
+      model: 'test-model',
+      usage: { input: 3, output: 4, cacheRead: 0, cacheWrite: 0, totalTokens: 7, cost: { input: 0, output: 0, total: 0 } },
+      stopReason: 'stop',
+    }))
+    const ctxWithModel = {
+      ...makeCtx(),
+      model: { id: 'test-model' },
+      modelRegistry: { complete },
+    } as unknown as ExtensionContext
+    await webHistory.execute('t1', { kind: 'all', limit: 3 }, new AbortController().signal, undefined, ctxWithModel)
+    expect(complete).toHaveBeenCalledTimes(0) // the tool itself does not call the LLM
+    const out = await result.host.llm!.complete({ prompt: 'summarize' })
+    expect(out.text).toBe('pi summary')
+    expect(out.model).toBe('test-model')
+    expect(out.usage).toEqual({ in: 3, out: 4 })
+    expect(complete).toHaveBeenCalledTimes(1)
+    await result.dispose()
+  })
+
   it('registers the eight browser_* tools when browser.enabled', () => {
     const { result, tools } = build({ browser: { enabled: true } })
     const names = tools.map(t => t.name)

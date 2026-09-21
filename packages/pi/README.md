@@ -97,9 +97,14 @@ executed silently.
   session UI).
 - Pi has no tool-unregistration API in v0.1 — disabled tools are filtered at
   registration time; a config switch change needs a restart to take effect.
-- The `llm` host member (curator LLM refetch) is not implemented in v0.1 —
-  the core's `web_fetch` `question` mode fails with `WEB_NOT_AVAILABLE` until
-  the Pi runtime exposes an LLM client to extensions (phase 5).
+- The `llm` host member (5.4) routes through the Pi model registry of the
+  latest tool-execution context (`ctx.modelRegistry.complete(ctx.model)`);
+  before the first tool run (or without a session model) LLM-dependent paths
+  (`web_fetch` `question`, curator summaries) fail closed with
+  `WEB_NOT_AVAILABLE`.
+- Curator UI (5.4): `extended.curator.enabled: true` registers the
+  `web_curator` tool — a token-protected 127.0.0.1 review page for searches
+  and pages (Summarize/Discard). Remote access is deferred in v0.1.
 
 ## Development
 
@@ -108,7 +113,7 @@ cd agents-web-search
 pnpm install --store-dir .pnpm-store
 cd packages/pi
 ./node_modules/.bin/tsc -p tsconfig.json --noEmit   # typecheck (real pi types, devDep)
-./node_modules/.bin/vitest run                      # 37 tests (config/schema/truncate/host/entry)
+./node_modules/.bin/vitest run                      # 50 tests (config/schema/truncate/host/entry + host contract)
 ```
 
 Peer `@earendil-works/pi-coding-agent` is provided by the Pi runtime

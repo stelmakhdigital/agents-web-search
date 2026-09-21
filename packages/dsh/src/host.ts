@@ -37,6 +37,7 @@ import { dirname } from 'node:path'
 
 import type { Config } from './config.ts'
 import { toCoreConfig } from './config.ts'
+import { createDshLlmClient } from './llm.ts'
 import { toDshParameterSchema } from './schema.ts'
 
 /** The plugin name (cordis companion identity). */
@@ -221,6 +222,11 @@ export function buildDshWebStack(ctx: Context, config: Config): DshWebStack {
         case 'error': logger.error(message, ...args); break
       }
     },
+
+    // Roadmap 5.4: auxiliary LLM (curator summaries, web_fetch question mode).
+    // DEEPSEEK_API_KEY (env) → DeepSeek chat-completions; undefined (fail-closed)
+    // when the key is absent.
+    llm: createDshLlmClient(),
 
     dispose: async () => {
       void stackRef.dispose()

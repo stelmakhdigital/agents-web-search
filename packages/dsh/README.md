@@ -55,7 +55,7 @@ adapter-registered core tools expose it.
 
 ```sh
 pnpm build              # esbuild → lib/index.js (ESM, host deps external)
-pnpm test               # vitest (44 tests: schema/config/entry/host adapter + host contract)
+pnpm test               # vitest (49 tests: schema/config/entry/host adapter/llm + host contract)
 pnpm typecheck          # tsc against the local type stubs (types/)
 pnpm typecheck:host     # STRICT check against the real DSH sources
                         # (requires DSH_HOST=/path/to/deepseek-harness with
@@ -68,6 +68,11 @@ pnpm typecheck:host     # STRICT check against the real DSH sources
   not rebuilt live yet).
 - The approval bridge (`host.approve`) tracks a single active tool exec per
   adapter instance (browser tools are `isConcurrencySafe: false`).
-- The `llm` HostAdapter member is not implemented in v0.1 — the core's
-  `web_fetch` `question` mode fails with `WEB_NOT_AVAILABLE` until the host
-  provides it (curator/engine injection, phase 5).
+- The `llm` HostAdapter member (5.4) is the DeepSeek chat-completions client
+  from `DEEPSEEK_API_KEY` (optional `DEEPSEEK_BASE_URL`). Without the key it
+  is absent and LLM-dependent paths (`web_fetch` `question`, curator
+  summaries) fail closed with `WEB_NOT_AVAILABLE`.
+- Curator UI (5.4): `extended.curator.enabled: true` registers the
+  `web_curator` tool — a token-protected 127.0.0.1 review page for searches
+  and pages (Summarize/Discard). Remote access (`extended.curator.remote`)
+  is deferred in v0.1 (loopback only).

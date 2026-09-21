@@ -60,6 +60,16 @@ describe('toCoreConfig (DSH config → CoreConfig)', () => {
     expect(mapped.browser).toEqual({ enabled: true, headless: false, approval: 'all', maxConcurrentTabs: 2 })
   })
 
+  it('maps extended.curator (roadmap 5.4) and omits it when unset', () => {
+    const mapped = toCoreConfig({
+      extended: { curator: { enabled: true, bind: '127.0.0.1', host: 'localhost', remote: false } },
+    })
+    expect(mapped.extended).toEqual({
+      curator: { enabled: true, bind: '127.0.0.1', host: 'localhost', remote: false },
+    })
+    expect(toCoreConfig({}).extended).toBeUndefined()
+  })
+
   it('maps provider blocks (baseUrl rename + optional fields)', () => {
     const mapped = toCoreConfig({
       providers: {

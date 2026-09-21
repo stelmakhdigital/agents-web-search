@@ -63,6 +63,7 @@ describe('toCoreConfig (Pi → core mapping)', () => {
         storePath: '/tmp/x.db',
       },
       fetch: { cacheTtlMs: 60_000, maxOutputChars: 1_000, allowPrivateNetworks: true, pdf: { enabled: false, maxSizeBytes: 2048, maxPages: 1 }, video: { enabled: false }, github: { enabled: false, maxCloneBytes: 1024, maxTreeEntries: 2 } },
+      extended: { curator: { enabled: true, bind: '127.0.0.1', host: '127.0.0.1', remote: false } },
       platforms: { enabled: false, maxResults: 5 },
       browser: { enabled: true, headless: false, approval: 'all', maxConcurrentTabs: 2 },
     })
@@ -78,6 +79,7 @@ describe('toCoreConfig (Pi → core mapping)', () => {
       embed: { endpoint: 'http://embed.test/v1', model: 'm' },
     })
     expect(core.fetch).toEqual({ cacheTtlMs: 60_000, maxOutputChars: 1_000, allowPrivateNetworks: true, pdf: { enabled: false, maxSizeBytes: 2048, maxPages: 1 }, video: { enabled: false }, github: { enabled: false, maxCloneBytes: 1024, maxTreeEntries: 2 } })
+    expect(core.extended).toEqual({ curator: { enabled: true, bind: '127.0.0.1', host: '127.0.0.1', remote: false } })
     expect(core.platforms).toEqual({ enabled: false, maxResults: 5 })
     expect(core.browser).toEqual({ enabled: true, headless: false, approval: 'all', maxConcurrentTabs: 2 })
     expect(core.store).toEqual({ path: '/tmp/x.db' })

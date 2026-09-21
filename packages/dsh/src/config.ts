@@ -117,6 +117,20 @@ export interface Config {
     /** Register `web_search_stats`. Default true. */
     stats?: boolean
   }
+  /** Extended fetch features (phase 5): curator UI (roadmap 5.4). */
+  extended?: {
+    /** Curator UI: local token-protected review server. */
+    curator?: {
+      /** Register the `web_curator` tool. Default false (opt-in). */
+      enabled?: boolean
+      /** Bind address (loopback only in v0.1). Default 127.0.0.1. */
+      bind?: string
+      /** Display host for the URL label. Default localhost. */
+      host?: string
+      /** Remote access (deferred in v0.1 — loopback only). Default false. */
+      remote?: boolean
+    }
+  }
   /** Playwright browser module (off by default; ADR-005). */
   browser?: {
     /** Enable the browser module. Default false. */
@@ -248,6 +262,18 @@ export const Config: z<Config> = z.object({
       stats: z.boolean().default(true),
     })
     .default({ history: true, cacheClear: true, stats: true }),
+  extended: z
+    .object({
+      curator: z
+        .object({
+          enabled: z.boolean().default(false),
+          bind: z.string().default('127.0.0.1'),
+          host: z.string().default('localhost'),
+          remote: z.boolean().default(false),
+        })
+        .default({ enabled: false, bind: '127.0.0.1', host: 'localhost', remote: false }),
+    })
+    .default({ curator: { enabled: false, bind: '127.0.0.1', host: 'localhost', remote: false } }),
   browser: z
     .object({
       enabled: z.boolean().default(false),
@@ -322,6 +348,7 @@ export function toCoreConfig(config: Config): CoreConfig {
   const search = config.search ?? {}
   const fetch = config.fetch ?? {}
   const platforms = config.platforms ?? {}
+  const extended = config.extended ?? {}
   const browser = config.browser ?? {}
   const providers = config.providers ?? {}
 
@@ -397,6 +424,18 @@ export function toCoreConfig(config: Config): CoreConfig {
             ...(browser.approval !== undefined ? { approval: browser.approval } : {}),
             ...(browser.allowPrivateNetworks !== undefined ? { allowPrivateNetworks: browser.allowPrivateNetworks } : {}),
             ...(browser.maxConcurrentTabs !== undefined ? { maxConcurrentTabs: browser.maxConcurrentTabs } : {}),
+          },
+        }
+      : {}),
+    ...(extended.curator !== undefined
+      ? {
+          extended: {
+            curator: {
+              enabled: extended.curator.enabled,
+              ...(str(extended.curator.bind) !== undefined ? { bind: str(extended.curator.bind) as string } : {}),
+              ...(str(extended.curator.host) !== undefined ? { host: str(extended.curator.host) as string } : {}),
+              ...(extended.curator.remote !== undefined ? { remote: extended.curator.remote } : {}),
+            },
           },
         }
       : {}),

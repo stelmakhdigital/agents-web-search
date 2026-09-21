@@ -113,6 +113,20 @@ export interface PiConfig {
     cacheClear?: boolean
     stats?: boolean
   }
+  /** Extended fetch features (phase 5): curator UI (roadmap 5.4). */
+  extended?: {
+    /** Curator UI: local token-protected review server. */
+    curator?: {
+      /** Register the `web_curator` tool. Default false (opt-in). */
+      enabled?: boolean
+      /** Bind address (loopback only in v0.1). Default 127.0.0.1. */
+      bind?: string
+      /** Display host for the URL label. Default localhost. */
+      host?: string
+      /** Remote access (deferred in v0.1 — loopback only). Default false. */
+      remote?: boolean
+    }
+  }
   /** Playwright browser module (off by default; ADR-005). */
   browser?: {
     enabled?: boolean
@@ -194,6 +208,7 @@ export function toCoreConfig(config: PiConfig): CoreConfig {
   const search = config.search ?? {}
   const fetch = config.fetch ?? {}
   const platforms = config.platforms ?? {}
+  const extended = config.extended ?? {}
   const browser = config.browser ?? {}
   const providers = config.providers ?? {}
 
@@ -259,6 +274,18 @@ export function toCoreConfig(config: PiConfig): CoreConfig {
       ...(platforms.maxResults !== undefined ? { maxResults: platforms.maxResults } : {}),
       ...(platforms.timeoutMs !== undefined ? { timeoutMs: platforms.timeoutMs } : {}),
     },
+    ...(extended.curator !== undefined
+      ? {
+          extended: {
+            curator: {
+              ...(extended.curator.enabled !== undefined ? { enabled: extended.curator.enabled } : {}),
+              ...(extended.curator.bind !== undefined ? { bind: extended.curator.bind } : {}),
+              ...(extended.curator.host !== undefined ? { host: extended.curator.host } : {}),
+              ...(extended.curator.remote !== undefined ? { remote: extended.curator.remote } : {}),
+            },
+          },
+        }
+      : {}),
     ...(browser.enabled !== undefined
       ? {
           browser: {
