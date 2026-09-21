@@ -131,7 +131,7 @@ export function apply(ctx: Context, config: PluginConfig): void {
   } catch (error) {
     if (error instanceof WebError && error.code === 'WEB_DUPLICATE_PROVIDER') {
       throw new WebError(
-        'the "multi" search provider is already registered: the @agents-web-search/dsh plugin and DSH built-in web packages (e.g. the local-web overlay) are mutually exclusive — keep one',
+        'the "multi" search provider is already registered: the @agents-web-search/dsh plugin is loaded twice (double install) — remove the duplicate install. (The built-in DSH web packages use different provider ids, e.g. "http"/"deepseek", and do NOT cause this error: the plugin bundle pins the seam to searchProvider=multi/fetchProvider=cached-http, so built-in providers may coexist.)',
         'WEB_DUPLICATE_PROVIDER',
         { cause: error },
       )

@@ -149,7 +149,8 @@ describe('@agents-web-search/dsh plugin entry (mocked core + host)', () => {
     const { WebError } = await import('@deepseek-ai/dsh-web')
     const { ctx } = makeCtx({ duplicateError: new WebError('duplicate', 'WEB_DUPLICATE_PROVIDER') })
     expect(() => apply(ctx as never, {})).toThrowError(WebError)
-    expect(() => apply(ctx as never, {})).toThrow(/mutually exclusive/)
+    expect(() => apply(ctx as never, {})).toThrow(/double install/)
+    expect(() => apply(ctx as never, {})).toThrow(/built-in DSH web packages use different provider ids/)
   })
 
   it('registers only the adapter tools (never web_search/web_fetch) with converted schemas', () => {

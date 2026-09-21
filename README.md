@@ -31,6 +31,32 @@ The core is referenced as a local tarball (`file:.vendor/core-*.tgz`); re-run
 `pnpm pack:core` whenever the core changes. Release mode swaps it for
 `@agents-web-search/core: ^<version>` from the npm registry.
 
+## Incompatibilities (roadmap 6.4, verified 2026-09-21)
+
+- **DSH: `WEB_DUPLICATE_PROVIDER`.** The DSH web seam throws it when two
+  providers with the same id are registered. Our provider ids are
+  `multi`/`cached-http`, so the built-in DSH web packages (ids `http`,
+  `deepseek`, …) do NOT collide with this plugin — and the plugin bundle pins
+  the seam to `searchProvider: multi` / `fetchProvider: cached-http`, which
+  also resolves `WEB_PROVIDER_AMBIGUOUS` (multiple usable providers, no pin).
+  The real duplicate trigger is the plugin being **loaded twice** (double
+  install, e.g. both a profile dependency and a bundle entry); `apply()`
+  then re-throws a `WEB_DUPLICATE_PROVIDER` with an actionable message
+  (tested in `packages/dsh/test/index.test.ts`).
+- **Pi: tool-name conflicts.** If another installed extension registers a
+  tool with the same name (e.g. `web_search`), Pi **fails fast at startup**
+  with `Tool "web_search" conflicts with <path of the other extension>` plus
+  a hint — verified end-to-end with a second extension registering
+  `web_search` (Pi 0.86.0). There is no silent override; the user sees both
+  package paths immediately.
+- **Core double install (npm vs git / file:).** The core keeps no mutable
+  global state (only immutable module-level constants), so two core
+  instances side by side are behaviourally safe: each adapter owns its own
+  `WebStore` (SQLite in the host's state dir) and stack. The remaining risk
+  is a **version skew** between an adapter and the core it links — mitigated
+  by exact-version pins in the workspace (`.vendor` tarball) and, from phase
+  7, by `^0.1`-exact ranges in the published packages.
+
 ## Commits
 
 This directory is its own git repository (branch `master`); commit from inside
