@@ -4,6 +4,41 @@
 версии пакетов синхронизированы (`dsh`, `pi`; `contract` — внутренний,
 private).
 
+## [1.0.1] — 2026-09-21
+
+Git-канал дистрибуции (решение пользователя 2026-09-21: пакеты **не
+публикуются в npm**; имена `@agents-web-search/*` сохранены как
+идентификаторы).
+
+### Добавлено
+
+- Корневой `package.json` → установочный пакет
+  `@agents-web-search/adapters`: DSH-плагин (`main:
+  packages/dsh/lib/index.js` + `dsh.bundle.patch`) и Pi-extension
+  (`pi.extensions: packages/pi/extensions`) в одном пакете.
+- Self-contained клон: pinned core-тарбол (`.vendor/`) и предсобраный
+  DSH-бандл (`packages/dsh/lib/`) в git — установка офлайн.
+- Установка: Pi — одна команда из git
+  (`pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.0.1`
+  — Pi сам клонирует и делает `npm install`); DSH — клон +
+  `dsh plugin add file:<клон>/packages/dsh` (pnpm git-спец не работает:
+  pnpm резолвит `file:` внутри git-пакета относительно проекта-потребителя
+  — проверено на pnpm 11.7). E2E: свежий клон из GitHub → DSH
+  `--dump-config` (seam pinned, без DUPLICATE/AMBIGUOUS) + Pi-инструмент
+  через mock LLM.
+
+### Изменено
+
+- `@agents-web-search/contract` (devDep dsh/pi): `workspace:*` →
+  `file:../contract` (npm-совместимость git-установки; npm не парсит
+  pnpm-протокол `workspace:`).
+- Корневой `package.json`: удалён `workspaces` (npm при git-установке
+  строил ideal tree по workspace-пакетам и падал в arborist; pnpm читает
+  `pnpm-workspace.yaml`, dev-файл не затронут); peer-зависимости
+  (`@deepseek-ai/*`, `@earendil-works/pi-coding-agent`) —
+  `peerDependenciesMeta: optional` (их даёт хост).
+- identity-версии адаптеров: `1.0.1`.
+
 ## [1.0.0] — 2026-09-21
 
 Первый стабильный релиз адаптеров (фазы 4–7). Требуемая версия core:

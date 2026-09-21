@@ -127,7 +127,7 @@ export function buildDshWebStack(ctx: Context, config: Config): DshWebStack {
   let stackRef: WebStack
 
   const host: HostAdapter = {
-    identity: { name: 'dsh', version: '1.0.0' }, // keep in sync with package.json (UA/logs/stats)
+    identity: { name: 'dsh', version: '1.0.1' }, // keep in sync with package.json (UA/logs/stats)
     config: coreConfig,
     paths: {
       stateDir,

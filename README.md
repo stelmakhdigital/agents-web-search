@@ -35,22 +35,26 @@ published to npm).
 
 ## Install (git channel, decision 2026-09-21)
 
-```sh
-git clone https://github.com/stelmakhdigital/agents-web-search.git
-```
+Channel: **git** — the packages are not published to npm. The repo is
+self-contained: the pinned core (`.vendor/agents-web-search-core-1.0.0.tgz`)
+and the prebuilt DSH bundle (`packages/dsh/lib/`) ship inside it, so a
+fresh clone installs offline.
 
 ### DSH
 
 ```sh
+git clone https://github.com/stelmakhdigital/agents-web-search.git
 # in a DSH profile (a dir with package.json + pnpm-workspace.yaml):
 dsh plugin --profile <profile> add file:/path/to/agents-web-search/packages/dsh
 dsh --profile <profile> --dump-config   # verify: web seam patched (multi/cached-http)
+# update: git -C … pull + dsh plugin --profile <profile> update
 ```
 
-`dsh plugin add` is a thin forwarder to `pnpm add` in the profile
-directory (any pnpm spec works); a monorepo sub-package is installed via
-the clone + `file:` form. Update: `git -C … pull` +
-`dsh plugin --profile <profile> update`.
+No one-command `dsh plugin add git+https://…`: `dsh plugin add` is a
+forwarder to `pnpm add`, and pnpm resolves `file:` dependencies inside a
+git package relative to the **consuming project** (the profile), not the
+clone (verified on pnpm 11.7). Clone + `file:` is the reliable,
+E2E-verified path.
 
 The plugin registers the core's search/fetch providers into the `web` seam
 (ids `multi`/`cached-http`) plus the adapter tools
@@ -63,10 +67,14 @@ the pin resolves ambiguity) — see the Incompatibilities section.
 
 ### Pi
 
+Pi installs a git repo in **one command** (it clones into its install dir
+and runs `npm install` itself):
+
 ```sh
-pi install /path/to/agents-web-search/packages/pi      # user scope
-pi install -l /path/to/agents-web-search/packages/pi   # project scope
+pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.0.1   # user scope
+pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.0.1  # project scope
 pi list
+# update: pi update (for a pinned ref — fetch origin <ref>)
 ```
 
 The extension registers all core tools (including `web_search`/`web_fetch`);

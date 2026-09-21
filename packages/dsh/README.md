@@ -19,8 +19,8 @@ maps host ⇄ core (ADR-002). Everything runs against local state
 ## Install
 
 Channel: **git** (decision 2026-09-21 — not published to npm). The repo
-is self-contained: the pinned core tarball (`.vendor/`) ships with it, so
-a fresh clone installs offline.
+is self-contained: the pinned core tarball (`.vendor/`) and the prebuilt
+bundle (`lib/`) ship with it, so a fresh clone installs offline.
 
 ```sh
 git clone https://github.com/stelmakhdigital/agents-web-search.git
@@ -29,6 +29,13 @@ dsh plugin --profile <profile> add file:/path/to/agents-web-search/packages/dsh
 dsh --profile <profile> --dump-config   # verify: web seam patched (multi/cached-http)
 # update: git -C … pull + dsh plugin --profile <profile> update
 ```
+
+There is no one-command `dsh plugin add git+https://…`: `dsh plugin add`
+is a forwarder to `pnpm add`, and pnpm resolves `file:` dependencies
+inside a git package relative to the consuming project (the profile), not
+the clone (verified on pnpm 11.7) — clone + `file:` is the reliable,
+E2E-verified path (verified on a fresh clone: `--dump-config` shows the
+pinned seam, no DUPLICATE/AMBIGUOUS).
 
 The built-in DSH web packages use different provider ids (`http`,
 `deepseek`, …), so they do NOT conflict with this plugin: the local overlay

@@ -1,6 +1,6 @@
 {
   "name": "@agents-web-search/adapters",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Installable root of the agents-web-search repo (git channel, decision 2026-09-21): the DSH cordis plugin (main + dsh.bundle) and the Pi extension (pi.extensions) in one package; the core ships as the pinned .vendor tarball. pnpm workspace root (pnpm-workspace.yaml; the npm `workspaces` field is intentionally absent so the Pi git-install `npm install` sees a plain package, not a workspace) \u2014 sub-packages (packages/*) are the development units.",
   "license": "MIT",
   "type": "module",

@@ -20,24 +20,25 @@ search/fetch/store/platform живёт в ядре, никогда в адапт
 
 ## Установка (git-канал, решение 2026-09-21)
 
-Клон самодостаточен: core-тарбол (pinned `v1.0.0`) лежит в репо
-(`.vendor/`) — установка работает офлайн.
-
-```sh
-git clone https://github.com/stelmakhdigital/agents-web-search.git
-```
+Канал — **git** (пакеты не публикуются в npm). Клон самодостаточен:
+core (pinned `v1.0.0`) лежит в репо тарболом (`.vendor/`), а DSH-плагин —
+предсобраным бандлом (`packages/dsh/lib/`) — установка работает офлайн.
 
 ### DSH
 
 ```sh
+git clone https://github.com/stelmakhdigital/agents-web-search.git
 # в DSH-профиле (каталог с package.json + pnpm-workspace.yaml):
 dsh plugin --profile <профиль> add file:/путь/к/agents-web-search/packages/dsh
 dsh --profile <профиль> --dump-config   # проверка: web seam patched (multi/cached-http)
+# обновление: git -C … pull + dsh plugin --profile <профиль> update
 ```
 
-`dsh plugin add` — тонкий форвардер в `pnpm add` в каталоге профиля
-(подойдёт любой pnpm-спец); подпакет моно-репо ставится клоном + `file:`.
-Обновление: `git -C … pull` + `dsh plugin --profile <профиль> update`.
+Однокомандного `dsh plugin add git+https://…` нет: `dsh plugin add` —
+форвардер в `pnpm add`, а pnpm резолвит `file:`-зависимости внутри
+git-пакета относительно **проекта-потребителя** (профиля), а не клона
+(проверено на pnpm 11.7). Клон + `file:` — надёжный проверенный E2E путь
+(свежий клон → `--dump-config`: web seam pinned, без DUPLICATE/AMBIGUOUS).
 
 Плагин регистрирует search/fetch-провайдеры ядра в seam `web`
 (id `multi`/`cached-http`) + адаптерские инструменты
@@ -50,10 +51,14 @@ dsh --profile <профиль> --dump-config   # проверка: web seam patc
 
 ### Pi
 
+Pi ставит git-репозиторий **одной командой** (сам клонирует в каталог
+установки и делает `npm install`):
+
 ```sh
-pi install /путь/к/agents-web-search/packages/pi      # user scope
-pi install -l /путь/к/agents-web-search/packages/pi   # project scope
+pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.0.1   # user scope
+pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.0.1  # project scope
 pi list
+# обновление: pi update (для зафиксированного ref — fetch origin <ref>)
 ```
 
 Extension регистрирует все инструменты ядра (включая `web_search`/`web_fetch`);

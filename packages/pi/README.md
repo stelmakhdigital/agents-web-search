@@ -12,20 +12,22 @@ with `ctx.ui.confirm` approval (fail-closed).
 
 ## Install
 
-Channel: **git** (decision 2026-09-21 — not published to npm). The repo
-is self-contained: the pinned core tarball (`.vendor/`) ships with it, so
-a fresh clone installs offline.
+Channel: **git** (decision 2026-09-21 — not published to npm). Pi installs
+a git repo in **one command** (it clones into its install dir and runs
+`npm install` itself; the repo is self-contained — the pinned core tarball
+ships inside it):
 
 ```sh
-git clone https://github.com/stelmakhdigital/agents-web-search.git
-pi install /path/to/agents-web-search/packages/pi      # user scope
-pi install -l /path/to/agents-web-search/packages/pi   # project scope
+pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.0.1   # user scope
+pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.0.1  # project scope
 pi list                                                # verify
+# update: pi update (for a pinned ref — fetch origin <ref>)
 ```
 
-Dev mode (from a workspace checkout): copy the package dir to
-`~/.pi/agent/extensions/agents-web-search` (or point `settings.json`
-`extensions` at it), then `/reload` in a running session.
+Dev mode (from a workspace checkout): `pi install /path/to/agents-web-search/packages/pi`,
+or copy the package dir to `~/.pi/agent/extensions/agents-web-search`
+(or point `settings.json` `extensions` at it), then `/reload` in a running
+session.
 
 ## Tools
 

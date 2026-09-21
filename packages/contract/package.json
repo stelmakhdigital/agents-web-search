@@ -1,6 +1,6 @@
 {
   "name": "@agents-web-search/contract",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Internal host-contract test suite (ADR-002): shared assertions for every HostAdapter implementation (DSH, Pi, future agents). Not published.",
   "license": "MIT",
   "private": true,
