@@ -5,8 +5,7 @@ DeepSeek Harness (DSH) adapter for the agent-agnostic web-search core
 stack into the DSH host:
 
 - the core's multi-engine search provider and cached fetch provider into the
-  `web` seam (ids `multi`/`cached-http` — parity with the built-in web
-  packages; the plugin and the built-in stack are mutually exclusive);
+  `web` seam (ids `multi`/`cached-http`);
 - the core's model-facing tools except `web_search`/`web_fetch` (the host's
   `tool-web` owns those): `get_search_content`, `web_platform_search`,
   `web_history`, `web_search_stats`, `web_cache_clear`, and — when
@@ -17,13 +16,31 @@ All search/fetch/store/platform logic lives in the core; this package only
 maps host ⇄ core (ADR-002). Everything runs against local state
 (`$DSH_HOME/web.db`).
 
+## Install
+
+```sh
+# in a DSH profile (a dir with package.json + pnpm-workspace.yaml):
+dsh plugin --profile <profile> add npm:@agents-web-search/dsh
+# dev mode (before the core is published to npm): a file: link
+dsh plugin --profile <profile> add file:<workspace>/agents-web-search/packages/dsh
+dsh --profile <profile> --dump-config   # verify: web seam patched (multi/cached-http)
+```
+
+The built-in DSH web packages use different provider ids (`http`,
+`deepseek`, …), so they do NOT conflict with this plugin: the local overlay
+below pins the seam to `searchProvider: multi` / `fetchProvider:
+cached-http`, which also resolves `WEB_PROVIDER_AMBIGUOUS`.
+`WEB_DUPLICATE_PROVIDER` can only occur when the plugin is loaded twice
+(double install) — `apply()` then re-throws it with an actionable message
+(roadmap 6.4).
+
 ## Local overlay
 
 `local-web.cordis.yml` pins the seam to the adapter's providers
 (`searchProvider: multi`, `fetchProvider: cached-http`) and sets the default
-config. Load it together with (not instead of) the built-in web packages —
-the plugin and the built-in stack are mutually exclusive
-(`WEB_DUPLICATE_PROVIDER`).
+config. The built-in web packages may coexist (different provider ids; the
+pin resolves ambiguity) — `WEB_DUPLICATE_PROVIDER` is only thrown when the
+plugin itself is loaded twice (double install, roadmap 6.4).
 
 ## PDF fetch (core 5.1)
 

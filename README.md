@@ -31,6 +31,53 @@ The core is referenced as a local tarball (`file:.vendor/core-*.tgz`); re-run
 `pnpm pack:core` whenever the core changes. Release mode swaps it for
 `@agents-web-search/core: ^<version>` from the npm registry.
 
+## Install (roadmap 7.1)
+
+### DSH
+
+```sh
+# in a DSH profile (a dir with package.json + pnpm-workspace.yaml):
+dsh plugin --profile <profile> add npm:@agents-web-search/dsh
+# dev mode (before the core is published to npm): a file: link
+dsh plugin --profile <profile> add file:<workspace>/agents-web-search/packages/dsh
+dsh --profile <profile> --dump-config   # verify: web seam patched (multi/cached-http)
+```
+
+The plugin registers the core's search/fetch providers into the `web` seam
+(ids `multi`/`cached-http`) plus the adapter tools
+(`get_search_content`, `web_platform_search`, `web_history`,
+`web_search_stats`, `web_cache_clear`, `browser_*`). The host's
+`tool-web` keeps `web_search`/`web_fetch`; the bundle pin
+(`searchProvider: multi`, `fetchProvider: cached-http`) routes them to the
+core. Built-in DSH web packages coexist safely (different provider ids;
+the pin resolves ambiguity) — see the Incompatibilities section.
+
+### Pi
+
+```sh
+pi install npm:@agents-web-search/pi      # user scope (~/.pi/agent/npm/)
+pi install -l npm:@agents-web-search/pi   # project scope (.pi/npm/)
+pi list
+```
+
+The extension registers all core tools (including `web_search`/`web_fetch`);
+optional config — `~/.pi/agent/web-search.json`, state —
+`~/.pi/agent/web-search/`.
+
+### Writing your own adapter (HostAdapter)
+
+Any agent integrates with the core through the single `HostAdapter`
+contract — `identity`, `config`, `paths`, `credential`,
+`registerTools` (the core never registers tools itself — the adapter does),
+`toHostError`, and the optional `approve` (fail-closed), `llm`
+(question mode of `web_fetch`, curator summaries) and `log`/`dispose`
+hooks. Full reference + a minimal example: the core's
+[README](https://github.com/stelmakhdigital/core-web-search#how-to-write-your-own-adapter-hostadapter)
+(«Как написать свой адаптер (HostAdapter)»). Adapters are thin (ADR-002):
+type/config/path/error mapping only — all logic lives in the core. The
+shared contract suite for new adapters: `runHostContractTests`
+(`packages/contract`, 12 checks).
+
 ## Incompatibilities (roadmap 6.4, verified 2026-09-21)
 
 - **DSH: `WEB_DUPLICATE_PROVIDER`.** The DSH web seam throws it when two
