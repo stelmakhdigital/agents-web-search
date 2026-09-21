@@ -145,7 +145,7 @@ export function apply(ctx: Context, config: PluginConfig): void {
   ctx.systemPrompt.section({
     name: 'tool:agents_web_search',
     order: 116,
-    text: 'Use web_platform_search for platform-specific searches (GitHub, Reddit, YouTube, …), web_history to review recent web searches and fetches, web_search_stats for web storage statistics, and web_cache_clear to clear the web search/page cache. These tools read the shared local web store; they make no network requests (except web_platform_search).',
+    text: 'Use web_platform_search for platform-specific searches (GitHub, Reddit, YouTube, …), get_search_content to read the full cached content of a previous web_search/web_fetch result (by the record id printed in their output), web_history to review recent web searches and fetches, web_search_stats for web storage statistics, and web_cache_clear to clear the web search/page cache. These tools read the shared local web store; they make no network requests (except web_platform_search).',
   })
 
   // Committed config edits (settings section); v0.1 applies them at the next

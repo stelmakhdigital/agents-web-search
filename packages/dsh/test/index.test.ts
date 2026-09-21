@@ -81,6 +81,7 @@ describe('@agents-web-search/dsh plugin entry (mocked core + host)', () => {
     coreState.tools = [
       fakeSpec('web_search', { type: 'object', properties: { queries: { type: 'array', items: { type: 'string' } } } }),
       fakeSpec('web_fetch', { type: 'object', properties: { url: { type: 'string' } } }),
+      fakeSpec('get_search_content', { type: 'object', properties: { source: { type: 'string' }, id: { type: 'integer' } } }),
       fakeSpec('web_platform_search', { type: 'object', properties: { platform: { type: 'string' } } }),
       fakeSpec('web_history', {
         type: 'object',
@@ -155,7 +156,7 @@ describe('@agents-web-search/dsh plugin entry (mocked core + host)', () => {
     const { ctx, registered } = makeCtx()
     apply(ctx as never, {})
     const names = registered.tools.map(t => t.name)
-    expect(names).toEqual(['web_platform_search', 'web_history', 'web_search_stats', 'web_cache_clear'])
+    expect(names).toEqual(['get_search_content', 'web_platform_search', 'web_history', 'web_search_stats', 'web_cache_clear'])
 
     const history = registered.tools.find(t => t.name === 'web_history') as { parameters: Record<string, unknown>; isConcurrencySafe: () => boolean }
     expect(history.parameters).toEqual({

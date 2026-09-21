@@ -38,12 +38,13 @@ describe('Pi extension entry (mocked ExtensionAPI)', () => {
     return { pi: pi as unknown as ExtensionAPI, toolNames, handlers }
   }
 
-  it('registers all six core tools and a session_shutdown cleanup', async () => {
+  it('registers all seven core tools and a session_shutdown cleanup', async () => {
     const { pi, toolNames, handlers } = mockPi()
     extension(pi)
     expect(toolNames).toEqual([
       'web_search',
       'web_fetch',
+      'get_search_content',
       'web_platform_search',
       'web_history',
       'web_search_stats',
@@ -66,7 +67,7 @@ describe('Pi extension entry (mocked ExtensionAPI)', () => {
     extension(pi)
     expect(toolNames).not.toContain('web_platform_search')
     expect(toolNames).toContain('browser_navigate')
-    expect(toolNames).toHaveLength(13) // 6 core − platform + 8 browser
+    expect(toolNames).toHaveLength(14) // 7 core − platform + 8 browser
   })
 
   it('throws on a malformed config before registering anything', async () => {

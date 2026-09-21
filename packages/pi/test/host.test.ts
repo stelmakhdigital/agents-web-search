@@ -89,12 +89,13 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
     return { result, tools: mock.tools }
   }
 
-  it('registers the six core tools (browser off by default)', () => {
+  it('registers the seven core tools (browser off by default)', () => {
     const { result, tools } = build()
     const names = tools.map(t => t.name)
     expect(names).toEqual([
       'web_search',
       'web_fetch',
+      'get_search_content',
       'web_platform_search',
       'web_history',
       'web_search_stats',
@@ -125,7 +126,7 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
   it('respects history/platforms tool switches', () => {
     const { tools } = build({ history: { history: false, stats: false }, platforms: { enabled: false } })
     const names = tools.map(t => t.name)
-    expect(names).toEqual(['web_search', 'web_fetch', 'web_cache_clear'])
+    expect(names).toEqual(['web_search', 'web_fetch', 'get_search_content', 'web_cache_clear'])
   })
 
   it('exposes host.llm via the Pi model registry (roadmap 5.4)', async () => {
@@ -160,7 +161,7 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
   it('registers the eight browser_* tools when browser.enabled', () => {
     const { result, tools } = build({ browser: { enabled: true } })
     const names = tools.map(t => t.name)
-    expect(names).toHaveLength(14)
+    expect(names).toHaveLength(15)
     expect(names).toContain('browser_navigate')
     const nav = tools.find(t => t.name === 'browser_navigate')
     expect(nav?.executionMode).toBe('sequential')

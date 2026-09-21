@@ -31,7 +31,7 @@ describe('buildDshWebStack (real core, mocked host modules)', () => {
     expect(result.stack.config.store.path).toBe(join(holder.baseDir, 'web.db'))
     expect(result.stack.config.search.engines).toEqual(['ddg', 'bing'])
     const names = registered.tools.map(t => t.name)
-    expect(names).toEqual(['web_platform_search', 'web_history', 'web_search_stats', 'web_cache_clear'])
+    expect(names).toEqual(['get_search_content', 'web_platform_search', 'web_history', 'web_search_stats', 'web_cache_clear'])
     // The real core's web_history schema projected to DSH (min/max dropped, enum kept).
     const history = registered.tools.find(t => t.name === 'web_history') as { parameters: Record<string, unknown> }
     expect(history.parameters).toMatchObject({

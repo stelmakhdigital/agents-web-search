@@ -55,7 +55,7 @@ export const FETCH_PROVIDER_ID = 'cached-http'
 const HOST_OWNED_TOOLS = new Set(['web_search', 'web_fetch'])
 
 /** Tools that are safe to run in parallel sibling groups (no shared mutable state). */
-const CONCURRENT_TOOLS = new Set(['web_platform_search', 'web_history', 'web_search_stats', 'web_cache_clear'])
+const CONCURRENT_TOOLS = new Set(['web_platform_search', 'get_search_content', 'web_history', 'web_search_stats', 'web_cache_clear'])
 
 /** Settings namespace for the plugin's config section. */
 export const SETTINGS_NAMESPACE = 'agents-web-search'

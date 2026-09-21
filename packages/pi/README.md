@@ -30,6 +30,7 @@ core tools (the DSH adapter leaves `web_search`/`web_fetch` to the host):
 |---|---|---|
 | `web_search` | Multi-engine search (DuckDuckGo + Bing keyless by default; Exa/Tavily/Brave/… when configured) | sequential |
 | `web_fetch` | Cached, SSRF-guarded page fetch as markdown; extracts PDFs locally (5.1); enriches YouTube watch URLs (5.2); GitHub repo/tree/file from a shallow clone and PR/issue from the keyless API (5.3); `question` param answers via the host LLM (needs `llm` host member) | sequential |
+| `get_search_content` | Full cached content of a previous `web_search`/`web_fetch` result by record id (5.5): `findText`/`offset`/`limit` over the stored content | parallel |
 | `web_platform_search` | GitHub / Reddit / YouTube / Bilibili / v2ex / RSS / … | parallel |
 | `web_history` | Recent searches/fetches from the local store | parallel |
 | `web_search_stats` | Cache/statistics counters | parallel |

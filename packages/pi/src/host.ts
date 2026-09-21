@@ -36,7 +36,7 @@ import { toTypeBoxParameters } from './schema.ts'
 import { truncateForPi } from './truncate.ts'
 
 /** Tools that may run concurrently (read-only; the core single-flights search). */
-const CONCURRENT_TOOLS = new Set(['web_platform_search', 'web_history', 'web_search_stats', 'web_cache_clear'])
+const CONCURRENT_TOOLS = new Set(['web_platform_search', 'get_search_content', 'web_history', 'web_search_stats', 'web_cache_clear'])
 
 /** Human-readable labels for `Available tools` / TUI display. */
 const TOOL_LABELS: Record<string, string> = {

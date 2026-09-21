@@ -8,9 +8,9 @@ stack into the DSH host:
   `web` seam (ids `multi`/`cached-http` — parity with the built-in web
   packages; the plugin and the built-in stack are mutually exclusive);
 - the core's model-facing tools except `web_search`/`web_fetch` (the host's
-  `tool-web` owns those): `web_platform_search`, `web_history`,
-  `web_search_stats`, `web_cache_clear`, and — when `browser.enabled` — the
-  `browser_*` tools;
+  `tool-web` owns those): `get_search_content`, `web_platform_search`,
+  `web_history`, `web_search_stats`, `web_cache_clear`, and — when
+  `browser.enabled` — the `browser_*` tools;
 - a settings section (`agents-web-search`) for committed config edits.
 
 All search/fetch/store/platform logic lives in the core; this package only
