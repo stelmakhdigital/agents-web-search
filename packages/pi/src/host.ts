@@ -259,7 +259,7 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
       browserGuard.skipClickType = false
       saveBrowserGuard()
     }
-    if (event.reason === 'startup' && pi.getFlag('--browser-guard-off') === true && !browserGuard.disabled) {
+    if (event.reason === 'startup' && pi.getFlag('browser-guard-off') === true && !browserGuard.disabled) {
       browserGuard.disabled = true
       saveBrowserGuard()
     }
