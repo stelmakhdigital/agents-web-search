@@ -371,6 +371,27 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
       await result.dispose()
     })
 
+    it('stale state is reset on a new session but kept on resume/reload', async () => {
+      // toggle off in "session A" — persisted to guard-state.json
+      const { result, registered } = build({ browser: { enabled: true } })
+      await registered.commands.find(c => c.name === 'browser-guard')!.def.handler('', makeGuardCtx())
+      // "session B" starts: the factory reloaded the stale state from the file
+      const { result: resultB, handlers } = build({ browser: { enabled: true } })
+      await expect(resultB.host.approve?.({ kind: 'browser_navigate', description: 'x' })).resolves.toBe(true)
+      // resume/reload reasons keep the current (persisted) state
+      await handlers.session_start?.[0]!({ reason: 'reload' }, makeGuardCtx())
+      await expect(resultB.host.approve?.({ kind: 'browser_navigate', description: 'y' })).resolves.toBe(true)
+      await handlers.session_start?.[0]!({ reason: 'resume' }, makeGuardCtx())
+      await expect(resultB.host.approve?.({ kind: 'browser_navigate', description: 'z' })).resolves.toBe(true)
+      // a genuinely new session resets to defaults (gate on ⇒ fail-closed) and persists
+      await handlers.session_start?.[0]!({ reason: 'startup' }, makeGuardCtx())
+      await expect(resultB.host.approve?.({ kind: 'browser_navigate', description: 'w' })).rejects.toMatchObject({
+        code: 'BROWSER_APPROVAL_UNAVAILABLE',
+      })
+      await result.dispose()
+      await resultB.dispose()
+    })
+
     it('--browser-guard-off: session_start enables the opt-out and sets the badge', async () => {
       const { result, handlers } = build({ browser: { enabled: true } }, { flags: { '--browser-guard-off': true } })
       const fire = handlers.session_start?.[0]

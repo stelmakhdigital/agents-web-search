@@ -100,14 +100,15 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
   const ctxSlot: { current: ExtensionContext | undefined } = { current: undefined }
   const lastCtx: { current: ExtensionContext | undefined } = { current: undefined }
 
-  // Browser approval gate toggles. Persistent: the shared
+  // Browser approval gate toggles. Persistent in the shared
   // `<agentDir>/guard-state.json` (same file and key convention as
-  // pi-extensions bash-guard/dir-guard) — survives reloads and session
-  // restarts. `disabled` means the user explicitly turned confirmations OFF
-  // (`/browser-guard` or `--browser-guard-off`) → approve allows immediately.
-  // The fail-closed rules (no context / no dialog UI ⇒ deny) apply only when
-  // the gate is enabled. Subagent processes deliberately get a fresh
-  // (enabled) state — the file is NOT read there.
+  // pi-extensions bash-guard/dir-guard) — survives /reload and pi -c
+  // (resume); a NEW session (startup/new/fork) resets to the defaults in
+  // session_start. `disabled` means the user explicitly turned confirmations
+  // OFF (`/browser-guard` or `--browser-guard-off`) → approve allows
+  // immediately. The fail-closed rules (no context / no dialog UI ⇒ deny)
+  // apply only when the gate is enabled. Subagent processes deliberately get
+  // a fresh (enabled) state — the file is NOT read there.
   const FRESH_GUARD = { disabled: false, skipClickType: false }
   const guardStateFile = join(agentDir, 'guard-state.json')
   const isSubagentProcess = Number(process.env.PI_SUBAGENT_DEPTH ?? '0') >= 1
@@ -249,6 +250,15 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
   })
 
   pi.on('session_start', (event, ctx) => {
+    // Новая сессия (startup/new/fork) → дефолты (врата ON) + persist;
+    // продолжение/перезагрузка (resume/reload) → сохранённое состояние
+    // (factory уже перечитал guard-state.json). Субагент не сбрасывает.
+    // (parity with bash-guard/dir-guard in pi-extensions)
+    if (!isSubagentProcess && event.reason !== 'resume' && event.reason !== 'reload') {
+      browserGuard.disabled = false
+      browserGuard.skipClickType = false
+      saveBrowserGuard()
+    }
     if (event.reason === 'startup' && pi.getFlag('--browser-guard-off') === true && !browserGuard.disabled) {
       browserGuard.disabled = true
       saveBrowserGuard()
@@ -266,7 +276,7 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
       refreshGuardStatus(ctx)
       ctx.ui.notify(
         browserGuard.disabled
-          ? 'browser-guard OFF for this session — browser actions run without confirmations. Run /browser-guard again to re-enable the gate.'
+          ? 'browser-guard OFF — browser actions run without confirmations. Remembered: survives /reload and pi -c; a new session starts with the gate on. Run /browser-guard again to re-enable.'
           : 'browser-guard back on — gated browser actions will ask for confirmation.',
         browserGuard.disabled ? 'warning' : 'info',
       )
@@ -281,7 +291,7 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
       refreshGuardStatus(ctx)
       ctx.ui.notify(
         browserGuard.skipClickType
-          ? 'browser-guard: click/type confirmations OFF for this session (navigate/evaluate still ask). Run /browser-guard:click again to re-enable.'
+          ? 'browser-guard: click/type confirmations OFF (navigate/evaluate still ask). Remembered: survives /reload and pi -c; a new session starts with confirmations on. Run /browser-guard:click again to re-enable.'
           : 'browser-guard: click/type confirmations back on.',
         browserGuard.skipClickType ? 'warning' : 'info',
       )
