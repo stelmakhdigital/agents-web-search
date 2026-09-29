@@ -4,6 +4,27 @@
 версии пакетов синхронизированы (`dsh`, `pi`; `contract` — внутренний,
 private).
 
+## [1.2.0] — 2026-09-29
+
+Тонкий toggle подтверждений click/type (по паттерну bash-guard-rm).
+
+### Добавлено
+
+- `packages/pi`: команда `/browser-guard-click` — сессионный toggle:
+  `browser_click`/`browser_type` выполняются без диалога, при этом
+  `browser_navigate`/`browser_evaluate` продолжают спрашивать. Бейдж в
+  футере `🖱 C/T OFF`. Имеет смысл при `browser.approval: "all"`
+  (политика `navigate` click/type и так не гейтит); fail-closed без диалогового
+  UI не ослабляется. Состояние in-memory (per-session).
+- `packages/pi`: тесты (click/type мимо гейта, navigate продолжает спрашивать,
+  бейдж, fail-closed без UI).
+
+### Изменено
+
+- version: root и `@agents-web-search/pi` → `1.2.0` (+ identity pi).
+  Доки: пин git-установки `@v1.1.0` → `@v1.2.0` (README EN/RU, pi README,
+  docstring entry).
+
 ## [1.1.0] — 2026-09-29
 
 Сессионный toggle подтверждения браузерных действий (browser-guard)

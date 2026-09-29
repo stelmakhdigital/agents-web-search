@@ -105,13 +105,20 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
   // (`/browser-guard` or `--browser-guard-off`) → approve allows immediately.
   // The fail-closed rules (no context / no dialog UI ⇒ deny) apply only when
   // the gate is enabled. Subagent processes get a fresh (enabled) state.
-  const browserGuard = { disabled: false }
+  const browserGuard = {
+    disabled: false,
+    // Fine-grained relaxation (`/browser-guard-click`, pattern: bash-guard-rm):
+    // click/type run without a dialog. Only meaningful with the `all` policy
+    // (the `navigate` policy does not gate them at all); navigate/evaluate
+    // keep asking. Fail-closed without a dialog UI is NOT relaxed.
+    skipClickType: false,
+  }
   // Leading space: pi's footer sorts status entries alphabetically and
   // truncates from the right, so a leading-space key surfaces first.
   const GUARD_STATUS_KEY = ' browser-guard'
 
   const host: HostAdapter = {
-    identity: { name: 'pi', version: '1.1.0' },
+    identity: { name: 'pi', version: '1.2.0' },
     config: coreConfig,
     paths: { stateDir, tempDir: join(stateDir, 'temp') },
 
@@ -147,8 +154,12 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
         )
       }
       if (!ctxSlot.current.hasUI) {
-        // No dialog-capable UI (json/print mode): deny, never auto-allow.
+        // No dialog-capable UI (json/print mode): deny, never auto-allow
+        // (the click/type relaxation below applies only to dialog sessions).
         return false
+      }
+      if (browserGuard.skipClickType && (request.kind === 'browser_click' || request.kind === 'browser_type')) {
+        return true
       }
       return ctxSlot.current.ui.confirm(
         'Web search: allow browser action?',
@@ -202,9 +213,10 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
   // --- browser-guard: session toggle for the approval gate -----------------
   const refreshGuardStatus = (ctx: ExtensionContext): void => {
     if (!ctx.hasUI) return
-    if (browserGuard.disabled) {
+    if (browserGuard.disabled || browserGuard.skipClickType) {
       const { theme } = ctx.ui
-      ctx.ui.setStatus(GUARD_STATUS_KEY, theme.bg('toolErrorBg', theme.bold(theme.fg('error', ' 🌐 BR OFF '))))
+      const label = browserGuard.disabled ? ' 🌐 BR OFF ' : ' 🖱 C/T OFF '
+      ctx.ui.setStatus(GUARD_STATUS_KEY, theme.bg('toolErrorBg', theme.bold(theme.fg('error', label))))
     } else {
       ctx.ui.setStatus(GUARD_STATUS_KEY, undefined)
     }
@@ -233,6 +245,20 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
           ? 'browser-guard OFF for this session — browser actions run without confirmations. Run /browser-guard again to re-enable the gate.'
           : 'browser-guard back on — gated browser actions will ask for confirmation.',
         browserGuard.disabled ? 'warning' : 'info',
+      )
+    },
+  })
+
+  pi.registerCommand('browser-guard-click', {
+    description: 'Toggle confirmations for browser_click/browser_type only (navigate/evaluate keep asking; needs the "all" approval policy).',
+    handler: async (_args, ctx) => {
+      browserGuard.skipClickType = !browserGuard.skipClickType
+      refreshGuardStatus(ctx)
+      ctx.ui.notify(
+        browserGuard.skipClickType
+          ? 'browser-guard: click/type confirmations OFF for this session (navigate/evaluate still ask). Run /browser-guard-click again to re-enable.'
+          : 'browser-guard: click/type confirmations back on.',
+        browserGuard.skipClickType ? 'warning' : 'info',
       )
     },
   })

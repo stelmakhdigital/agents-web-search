@@ -49,13 +49,14 @@ function makeMockPi(overrides: { flags?: Record<string, unknown> } = {}) {
 }
 
 function makeGuardCtx(overrides: { ui?: Record<string, unknown> } = {}): ExtensionContext {
+  const base = makeCtx()
   return {
-    ...makeCtx(),
+    ...base,
     ui: {
-      ...makeCtx().ui,
-      setStatus: overrides.ui?.setStatus ?? (() => {}),
-      notify: overrides.ui?.notify ?? (() => {}),
+      ...base.ui,
       theme: { fg: (_c: string, s: string) => s, bg: (_c: string, s: string) => s, bold: (s: string) => s },
+      setStatus: () => {},
+      ...overrides.ui,
     },
   } as unknown as ExtensionContext
 }
@@ -126,7 +127,7 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
     ])
     expect(result.stack.config.search.mode).toBe('fallback')
     // host identity + state dir under the agent dir
-    expect(result.host.identity).toEqual({ name: 'pi', version: '1.1.0' })
+    expect(result.host.identity).toEqual({ name: 'pi', version: '1.2.0' })
     expect(result.host.paths.stateDir).toBe(join(agentDir, 'web-search'))
   })
 
@@ -302,6 +303,55 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
       expect(String(statuses.at(-1)?.[1])).toContain('BR OFF')
       await cmd.def.handler('', ctx)
       expect(statuses.at(-1)).toEqual([' browser-guard', undefined])
+    })
+
+    it('browser-guard-click: click/type skip the dialog, navigate/evaluate keep asking (all policy)', async () => {
+      const { result, registered, tools } = build({ browser: { enabled: true, approval: 'all' } })
+      const cmd = registered.commands.find(c => c.name === 'browser-guard-click')!
+      const confirm = vi.fn(async () => false)
+      const ctx = makeGuardCtx({ ui: { confirm } })
+      const click = tools.find(t => t.name === 'browser_click')!
+      const navigate = tools.find(t => t.name === 'browser_navigate')!
+      // gated before the toggle: dialog is asked and denied
+      await click.execute('t-c1', { selector: 'button' }, new AbortController().signal, undefined, ctx as unknown as ExtensionContext)
+        .catch(e => expect(String(e)).toContain('BROWSER_APPROVAL_DENIED'))
+      expect(confirm).toHaveBeenCalledTimes(1)
+      // relax click/type
+      await cmd.def.handler('', makeGuardCtx({ ui: { confirm } }))
+      // click proceeds past the gate (no dialog) — fails later on the missing session, NOT on approval
+      const clickErr = await click.execute('t-c2', { selector: 'button' }, new AbortController().signal, undefined, ctx as unknown as ExtensionContext).then(
+        () => { throw new Error('expected failure (no browser session)') },
+        (e: unknown) => e,
+      )
+      expect(String(clickErr)).not.toContain('APPROVAL_DENIED')
+      expect(confirm).toHaveBeenCalledTimes(1) // still no dialog for click
+      // navigate keeps asking
+      await navigate.execute('t-n1', { url: 'https://example.com/' }, new AbortController().signal, undefined, ctx as unknown as ExtensionContext)
+        .catch(e => expect(String(e)).toContain('BROWSER_APPROVAL_DENIED'))
+      expect(confirm).toHaveBeenCalledTimes(2)
+      await result.dispose()
+    })
+
+    it('browser-guard-click: badge shows C/T OFF, cleared on re-enable', async () => {
+      const { registered } = build({ browser: { enabled: true, approval: 'all' } })
+      const cmd = registered.commands.find(c => c.name === 'browser-guard-click')!
+      const statuses: Array<[string, unknown]> = []
+      const ctx = makeGuardCtx({ ui: { setStatus: (k: string, v: unknown) => statuses.push([k, v]) } })
+      await cmd.def.handler('', ctx)
+      expect(statuses.at(-1)?.[0]).toBe(' browser-guard')
+      expect(String(statuses.at(-1)?.[1])).toContain('C/T OFF')
+      await cmd.def.handler('', ctx)
+      expect(statuses.at(-1)).toEqual([' browser-guard', undefined])
+    })
+
+    it('browser-guard-click: fail-closed without a dialog UI is NOT relaxed', async () => {
+      const { registered, tools } = build({ browser: { enabled: true, approval: 'all' } })
+      const cmd = registered.commands.find(c => c.name === 'browser-guard-click')!
+      await cmd.def.handler('', makeGuardCtx())
+      const click = tools.find(t => t.name === 'browser_click')!
+      await expect(
+        click.execute('t-c3', { selector: 'button' }, new AbortController().signal, undefined, makeCtx({ hasUI: false })),
+      ).rejects.toThrow('Error (BROWSER_APPROVAL_DENIED)')
     })
 
     it('--browser-guard-off: session_start enables the opt-out and sets the badge', async () => {
