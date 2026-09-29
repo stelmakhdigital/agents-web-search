@@ -20,6 +20,7 @@
  * @module @agents-web-search/pi/host
  */
 
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { CoreError, createWebStack, type HostAdapter, type ToolSpec, type WebStack } from '@agents-web-search/core'
@@ -99,26 +100,45 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
   const ctxSlot: { current: ExtensionContext | undefined } = { current: undefined }
   const lastCtx: { current: ExtensionContext | undefined } = { current: undefined }
 
-  // Browser approval gate, session toggle (in-memory, not persisted — same
-  // convention as pi-extensions bash-guard/dir-guard): `disabled` means the
-  // user explicitly turned confirmations OFF for this session
+  // Browser approval gate toggles. Persistent: the shared
+  // `<agentDir>/guard-state.json` (same file and key convention as
+  // pi-extensions bash-guard/dir-guard) — survives reloads and session
+  // restarts. `disabled` means the user explicitly turned confirmations OFF
   // (`/browser-guard` or `--browser-guard-off`) → approve allows immediately.
   // The fail-closed rules (no context / no dialog UI ⇒ deny) apply only when
-  // the gate is enabled. Subagent processes get a fresh (enabled) state.
-  const browserGuard = {
-    disabled: false,
-    // Fine-grained relaxation (`/browser-guard:click`, pattern: bash-guard:rm):
-    // click/type run without a dialog. Only meaningful with the `all` policy
-    // (the `navigate` policy does not gate them at all); navigate/evaluate
-    // keep asking. Fail-closed without a dialog UI is NOT relaxed.
-    skipClickType: false,
+  // the gate is enabled. Subagent processes deliberately get a fresh
+  // (enabled) state — the file is NOT read there.
+  const FRESH_GUARD = { disabled: false, skipClickType: false }
+  const guardStateFile = join(agentDir, 'guard-state.json')
+  const isSubagentProcess = Number(process.env.PI_SUBAGENT_DEPTH ?? '0') >= 1
+  const browserGuard = isSubagentProcess
+    ? { ...FRESH_GUARD }
+    : (() => {
+        try {
+          const all = JSON.parse(readFileSync(guardStateFile, 'utf8')) as Record<string, Record<string, unknown>>
+          const st = all['browser-guard'] ?? {}
+          return { disabled: Boolean(st.disabled), skipClickType: Boolean(st.skipClickType) }
+        } catch {
+          return { ...FRESH_GUARD }
+        }
+      })()
+  const saveBrowserGuard = (): void => {
+    if (isSubagentProcess) return
+    let all: Record<string, Record<string, unknown>> = {}
+    try {
+      all = JSON.parse(readFileSync(guardStateFile, 'utf8')) as Record<string, Record<string, unknown>>
+    } catch {
+      /* absent/corrupt ⇒ fresh */
+    }
+    all['browser-guard'] = { disabled: browserGuard.disabled, skipClickType: browserGuard.skipClickType }
+    writeFileSync(guardStateFile, JSON.stringify(all, null, 2))
   }
   // Leading space: pi's footer sorts status entries alphabetically and
   // truncates from the right, so a leading-space key surfaces first.
   const GUARD_STATUS_KEY = ' browser-guard'
 
   const host: HostAdapter = {
-    identity: { name: 'pi', version: '1.3.0' },
+    identity: { name: 'pi', version: '1.4.0' },
     config: coreConfig,
     paths: { stateDir, tempDir: join(stateDir, 'temp') },
 
@@ -229,16 +249,20 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
   })
 
   pi.on('session_start', (event, ctx) => {
-    if (event.reason === 'startup' && pi.getFlag('--browser-guard-off') === true) {
+    if (event.reason === 'startup' && pi.getFlag('--browser-guard-off') === true && !browserGuard.disabled) {
       browserGuard.disabled = true
-      refreshGuardStatus(ctx)
+      saveBrowserGuard()
     }
+    // Sync the badge on every reason (incl. "reload": the factory re-runs and
+    // the state is restored from guard-state.json).
+    refreshGuardStatus(ctx)
   })
 
   pi.registerCommand('browser-guard', {
     description: 'Toggle browser action confirmations (approval gate) for this session.',
     handler: async (_args, ctx) => {
       browserGuard.disabled = !browserGuard.disabled
+      saveBrowserGuard()
       refreshGuardStatus(ctx)
       ctx.ui.notify(
         browserGuard.disabled
@@ -253,6 +277,7 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
     description: 'Toggle confirmations for browser_click/browser_type only (navigate/evaluate keep asking; needs the "all" approval policy).',
     handler: async (_args, ctx) => {
       browserGuard.skipClickType = !browserGuard.skipClickType
+      saveBrowserGuard()
       refreshGuardStatus(ctx)
       ctx.ui.notify(
         browserGuard.skipClickType

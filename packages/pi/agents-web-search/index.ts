@@ -23,7 +23,7 @@
  * Secrets: process environment (e.g. `EXA_API_KEY`) or `providers.*.apiKey`.
  *
  * Install (git channel, decision 2026-09-21):
- * `pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.3.0`
+ * `pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.4.0`
  * (one command — Pi clones the repo and runs `npm install`); dev:
  * `pi install /path/to/agents-web-search/packages/pi` or copy this dir to
  * `~/.pi/agent/extensions/agents-web-search`.

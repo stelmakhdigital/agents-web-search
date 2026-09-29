@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -127,7 +128,7 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
     ])
     expect(result.stack.config.search.mode).toBe('fallback')
     // host identity + state dir under the agent dir
-    expect(result.host.identity).toEqual({ name: 'pi', version: '1.3.0' })
+    expect(result.host.identity).toEqual({ name: 'pi', version: '1.4.0' })
     expect(result.host.paths.stateDir).toBe(join(agentDir, 'web-search'))
   })
 
@@ -354,6 +355,22 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
       ).rejects.toThrow('Error (BROWSER_APPROVAL_DENIED)')
     })
 
+    it('state persists to guard-state.json and is restored by a new build', async () => {
+      const { result, registered } = build({ browser: { enabled: true } })
+      const cmd = registered.commands.find(c => c.name === 'browser-guard')!
+      const file = join(agentDir, 'guard-state.json')
+      await cmd.def.handler('', makeGuardCtx()) // toggle off
+      expect(JSON.parse(readFileSync(file, 'utf8'))['browser-guard']).toEqual({ disabled: true, skipClickType: false })
+      // A new build (reloaded factory) picks the state up from the file:
+      // approve allows without a dialog even without an execution context.
+      const reloaded = buildPiWebStack(makeMockPi().pi, { browser: { enabled: true } })
+      await expect(reloaded.host.approve?.({ kind: 'browser_navigate', description: 'x' })).resolves.toBe(true)
+      // restore the original state
+      await cmd.def.handler('', makeGuardCtx())
+      expect(JSON.parse(readFileSync(file, 'utf8'))['browser-guard']).toEqual({ disabled: false, skipClickType: false })
+      await result.dispose()
+    })
+
     it('--browser-guard-off: session_start enables the opt-out and sets the badge', async () => {
       const { result, handlers } = build({ browser: { enabled: true } }, { flags: { '--browser-guard-off': true } })
       const fire = handlers.session_start?.[0]
@@ -363,11 +380,14 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
       await fire!({ reason: 'startup' }, ctx)
       expect(statuses.at(-1)?.[0]).toBe(' browser-guard')
       await expect(result.host.approve?.({ kind: 'browser_navigate', description: 'x' })).resolves.toBe(true)
-      // non-startup reasons (resume) must not touch the state
+      // non-startup reasons (resume) do not change the state — the badge is
+      // only re-synced from the (still disabled) state
       const statuses2: Array<[string, unknown]> = []
       const ctx2 = makeGuardCtx({ ui: { setStatus: (k: string, v: unknown) => statuses2.push([k, v]) } })
       await fire!({ reason: 'resume' }, ctx2)
-      expect(statuses2).toEqual([])
+      expect(statuses2).toHaveLength(1)
+      expect(statuses2.at(-1)?.[0]).toBe(' browser-guard')
+      await expect(result.host.approve?.({ kind: 'browser_navigate', description: 'y' })).resolves.toBe(true)
     })
   })
 

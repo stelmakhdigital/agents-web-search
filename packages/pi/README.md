@@ -18,8 +18,8 @@ a git repo in **one command** (it clones into its install dir and runs
 ships inside it):
 
 ```sh
-pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.3.0   # user scope
-pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.3.0  # project scope
+pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.4.0   # user scope
+pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.4.0  # project scope
 pi list                                                # verify
 # update: pi update (for a pinned ref — fetch origin <ref>)
 ```
@@ -101,8 +101,10 @@ executed silently.
 **Session toggle** (same convention as pi-extensions bash-guard/dir-guard):
 `/browser-guard` turns the confirmations OFF for the current session
 (footer badge `🌐 BR OFF`), and back on again; `--browser-guard-off` starts
-the session already in the no-confirm state. The state is in-memory (per
-session, not persisted); subagent processes always get a fresh, enabled gate.
+the session already in the no-confirm state. The state is persistent:
+`~/.pi/agent/guard-state.json` (shared with pi-extensions bash-guard/
+dir-guard), survives reloads and session restarts; subagent processes always
+get a fresh, enabled gate.
 Fine-grained relaxation: `/browser-guard:click` (pattern: `bash-guard:rm`)
 lets `browser_click`/`browser_type` run without a dialog while
 `browser_navigate`/`browser_evaluate` keep asking (footer badge `🖱 C/T OFF`);

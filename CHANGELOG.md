@@ -4,6 +4,23 @@
 версии пакетов синхронизированы (`dsh`, `pi`; `contract` — внутренний,
 private).
 
+## [1.4.0] — 2026-09-29
+
+Персистентность toggle'ов browser-guard (синхронно с pi-extensions 0.5.0).
+
+### Изменено
+
+- `packages/pi`: состояние `/browser-guard` и `/browser-guard:click`
+  персистентно — общий файл `~/.pi/agent/guard-state.json` (тот же файл и
+  формат ключа, что у bash-guard/dir-guard из pi-extensions). Переживает
+  reload и перезапуск сессии. Процессы субагентов файл сознательно не
+  читают — всегда fresh-включённый гейт (fail-safe).
+- `packages/pi`: `session_start` синхронизирует бейдж при любой причине
+  (включая "reload") из восстановленного состояния.
+- version: root и `@agents-web-search/pi` → `1.4.0` (+ identity pi).
+  Доки: пин git-установки `@v1.3.0` → `@v1.4.0` (README EN/RU, pi README,
+  docstring entry).
+
 ## [1.3.0] — 2026-09-29
 
 Нейминг тонких toggle-команд в именнованном формате (единый паттерн
