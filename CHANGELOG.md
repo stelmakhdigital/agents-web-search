@@ -4,6 +4,21 @@
 версии пакетов синхронизированы (`dsh`, `pi`; `contract` — внутренний,
 private).
 
+## [1.3.0] — 2026-09-29
+
+Нейминг тонких toggle-команд в именнованном формате (единый паттерн
+`<guard>:<суб-операция>`, синхронно с pi-extensions: `/bash-guard-rm` →
+`/bash-guard:rm`).
+
+### Изменено
+
+- `packages/pi`: команда `/browser-guard-click` переименована в
+  `/browser-guard:click` (поведение без изменений; старое имя не
+  поддерживается). Доки: pi README.
+- version: root и `@agents-web-search/pi` → `1.3.0` (+ identity pi).
+  Доки: пин git-установки `@v1.2.0` → `@v1.3.0` (README EN/RU, pi README,
+  docstring entry).
+
 ## [1.2.0] — 2026-09-29
 
 Тонкий toggle подтверждений click/type (по паттерну bash-guard-rm).

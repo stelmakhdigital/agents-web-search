@@ -127,7 +127,7 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
     ])
     expect(result.stack.config.search.mode).toBe('fallback')
     // host identity + state dir under the agent dir
-    expect(result.host.identity).toEqual({ name: 'pi', version: '1.2.0' })
+    expect(result.host.identity).toEqual({ name: 'pi', version: '1.3.0' })
     expect(result.host.paths.stateDir).toBe(join(agentDir, 'web-search'))
   })
 
@@ -305,9 +305,9 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
       expect(statuses.at(-1)).toEqual([' browser-guard', undefined])
     })
 
-    it('browser-guard-click: click/type skip the dialog, navigate/evaluate keep asking (all policy)', async () => {
+    it('browser-guard:click — click/type skip the dialog, navigate/evaluate keep asking (all policy)', async () => {
       const { result, registered, tools } = build({ browser: { enabled: true, approval: 'all' } })
-      const cmd = registered.commands.find(c => c.name === 'browser-guard-click')!
+      const cmd = registered.commands.find(c => c.name === 'browser-guard:click')!
       const confirm = vi.fn(async () => false)
       const ctx = makeGuardCtx({ ui: { confirm } })
       const click = tools.find(t => t.name === 'browser_click')!
@@ -332,9 +332,9 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
       await result.dispose()
     })
 
-    it('browser-guard-click: badge shows C/T OFF, cleared on re-enable', async () => {
+    it('browser-guard:click — badge shows C/T OFF, cleared on re-enable', async () => {
       const { registered } = build({ browser: { enabled: true, approval: 'all' } })
-      const cmd = registered.commands.find(c => c.name === 'browser-guard-click')!
+      const cmd = registered.commands.find(c => c.name === 'browser-guard:click')!
       const statuses: Array<[string, unknown]> = []
       const ctx = makeGuardCtx({ ui: { setStatus: (k: string, v: unknown) => statuses.push([k, v]) } })
       await cmd.def.handler('', ctx)
@@ -344,9 +344,9 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
       expect(statuses.at(-1)).toEqual([' browser-guard', undefined])
     })
 
-    it('browser-guard-click: fail-closed without a dialog UI is NOT relaxed', async () => {
+    it('browser-guard:click — fail-closed without a dialog UI is NOT relaxed', async () => {
       const { registered, tools } = build({ browser: { enabled: true, approval: 'all' } })
-      const cmd = registered.commands.find(c => c.name === 'browser-guard-click')!
+      const cmd = registered.commands.find(c => c.name === 'browser-guard:click')!
       await cmd.def.handler('', makeGuardCtx())
       const click = tools.find(t => t.name === 'browser_click')!
       await expect(

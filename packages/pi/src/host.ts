@@ -107,7 +107,7 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
   // the gate is enabled. Subagent processes get a fresh (enabled) state.
   const browserGuard = {
     disabled: false,
-    // Fine-grained relaxation (`/browser-guard-click`, pattern: bash-guard-rm):
+    // Fine-grained relaxation (`/browser-guard:click`, pattern: bash-guard:rm):
     // click/type run without a dialog. Only meaningful with the `all` policy
     // (the `navigate` policy does not gate them at all); navigate/evaluate
     // keep asking. Fail-closed without a dialog UI is NOT relaxed.
@@ -118,7 +118,7 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
   const GUARD_STATUS_KEY = ' browser-guard'
 
   const host: HostAdapter = {
-    identity: { name: 'pi', version: '1.2.0' },
+    identity: { name: 'pi', version: '1.3.0' },
     config: coreConfig,
     paths: { stateDir, tempDir: join(stateDir, 'temp') },
 
@@ -249,14 +249,14 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
     },
   })
 
-  pi.registerCommand('browser-guard-click', {
+  pi.registerCommand('browser-guard:click', {
     description: 'Toggle confirmations for browser_click/browser_type only (navigate/evaluate keep asking; needs the "all" approval policy).',
     handler: async (_args, ctx) => {
       browserGuard.skipClickType = !browserGuard.skipClickType
       refreshGuardStatus(ctx)
       ctx.ui.notify(
         browserGuard.skipClickType
-          ? 'browser-guard: click/type confirmations OFF for this session (navigate/evaluate still ask). Run /browser-guard-click again to re-enable.'
+          ? 'browser-guard: click/type confirmations OFF for this session (navigate/evaluate still ask). Run /browser-guard:click again to re-enable.'
           : 'browser-guard: click/type confirmations back on.',
         browserGuard.skipClickType ? 'warning' : 'info',
       )
