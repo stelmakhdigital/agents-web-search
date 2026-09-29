@@ -10,7 +10,8 @@
  *   web_cache_clear, and — when `browser.enabled` — the `browser_*` tools;
  * - tool results are truncated to the Pi host caps (50KB / 2000 lines);
  * - browser actions are permission-gated through `ctx.ui.confirm`
- *   (fail-closed: no UI ⇒ denied, ADR-005 §3);
+ *   (fail-closed: no UI ⇒ denied, ADR-005 §3); session-level opt-out:
+ *   `/browser-guard` toggle or `--browser-guard-off` (badge `🌐 BR OFF`);
  * - the `platforms.enabled` / `history.*` switches filter the registered
  *   tools (parity with dsh-web-automation).
  *
@@ -22,7 +23,7 @@
  * Secrets: process environment (e.g. `EXA_API_KEY`) or `providers.*.apiKey`.
  *
  * Install (git channel, decision 2026-09-21):
- * `pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.0.2`
+ * `pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.1.0`
  * (one command — Pi clones the repo and runs `npm install`); dev:
  * `pi install /path/to/agents-web-search/packages/pi` or copy this dir to
  * `~/.pi/agent/extensions/agents-web-search`.

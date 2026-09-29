@@ -13,7 +13,8 @@
  *   core code (`Error (CODE): message` — the core's own text convention);
  * - `approve`: `ctx.ui.confirm` (permission gate, 4.5) — fail-closed: no
  *   active tool context or no dialog-capable UI ⇒ the action is DENIED
- *   (ADR-005 §3);
+ *   (ADR-005 §3); session-level opt-out via `/browser-guard` or
+ *   `--browser-guard-off` (footer badge `🌐 BR OFF`);
  * - `llm`: not implemented in v0.1 (curator — phase 5).
  *
  * @module @agents-web-search/pi/host
@@ -98,8 +99,19 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
   const ctxSlot: { current: ExtensionContext | undefined } = { current: undefined }
   const lastCtx: { current: ExtensionContext | undefined } = { current: undefined }
 
+  // Browser approval gate, session toggle (in-memory, not persisted — same
+  // convention as pi-extensions bash-guard/dir-guard): `disabled` means the
+  // user explicitly turned confirmations OFF for this session
+  // (`/browser-guard` or `--browser-guard-off`) → approve allows immediately.
+  // The fail-closed rules (no context / no dialog UI ⇒ deny) apply only when
+  // the gate is enabled. Subagent processes get a fresh (enabled) state.
+  const browserGuard = { disabled: false }
+  // Leading space: pi's footer sorts status entries alphabetically and
+  // truncates from the right, so a leading-space key surfaces first.
+  const GUARD_STATUS_KEY = ' browser-guard'
+
   const host: HostAdapter = {
-    identity: { name: 'pi', version: '1.0.2' },
+    identity: { name: 'pi', version: '1.1.0' },
     config: coreConfig,
     paths: { stateDir, tempDir: join(stateDir, 'temp') },
 
@@ -125,6 +137,9 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
 
     // Permission gate (4.5): confirm through the Pi UI, fail-closed.
     approve: async (request: { kind: string; description: string }) => {
+      // Explicit session-level opt-out (`/browser-guard` / `--browser-guard-off`):
+      // the user has already decided — no dialog, including without a UI.
+      if (browserGuard.disabled) return true
       if (ctxSlot.current === undefined) {
         throw new CoreError(
           `browser ${request.kind.slice('browser_'.length)} requires approval, but no tool execution context is available — the action is denied (fail-closed)`,
@@ -183,6 +198,44 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
 
     dispose: () => stack.dispose(),
   }
+
+  // --- browser-guard: session toggle for the approval gate -----------------
+  const refreshGuardStatus = (ctx: ExtensionContext): void => {
+    if (!ctx.hasUI) return
+    if (browserGuard.disabled) {
+      const { theme } = ctx.ui
+      ctx.ui.setStatus(GUARD_STATUS_KEY, theme.bg('toolErrorBg', theme.bold(theme.fg('error', ' 🌐 BR OFF '))))
+    } else {
+      ctx.ui.setStatus(GUARD_STATUS_KEY, undefined)
+    }
+  }
+
+  pi.registerFlag('browser-guard-off', {
+    description: 'Start the session with browser confirmations disabled (approval gate off for this session).',
+    type: 'boolean',
+    default: false,
+  })
+
+  pi.on('session_start', (event, ctx) => {
+    if (event.reason === 'startup' && pi.getFlag('--browser-guard-off') === true) {
+      browserGuard.disabled = true
+      refreshGuardStatus(ctx)
+    }
+  })
+
+  pi.registerCommand('browser-guard', {
+    description: 'Toggle browser action confirmations (approval gate) for this session.',
+    handler: async (_args, ctx) => {
+      browserGuard.disabled = !browserGuard.disabled
+      refreshGuardStatus(ctx)
+      ctx.ui.notify(
+        browserGuard.disabled
+          ? 'browser-guard OFF for this session — browser actions run without confirmations. Run /browser-guard again to re-enable the gate.'
+          : 'browser-guard back on — gated browser actions will ask for confirmation.',
+        browserGuard.disabled ? 'warning' : 'info',
+      )
+    },
+  })
 
   const stack = createWebStack(host)
   // The adapter drives tool registration (ADR-002 §2): project every core

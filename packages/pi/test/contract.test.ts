@@ -36,6 +36,9 @@ function makeMockPi() {
       tools.push(tool)
     }),
     on: vi.fn(() => () => {}),
+    registerFlag: vi.fn(),
+    registerCommand: vi.fn(),
+    getFlag: () => false,
   }
   return { pi: pi as unknown as ExtensionAPI, tools }
 }

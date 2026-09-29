@@ -34,6 +34,9 @@ describe('Pi extension entry (mocked ExtensionAPI)', () => {
         handlers.set(event, [...(handlers.get(event) ?? []), handler])
         return () => {}
       }),
+      registerFlag: vi.fn(),
+      registerCommand: vi.fn(),
+      getFlag: () => false,
     }
     return { pi: pi as unknown as ExtensionAPI, toolNames, handlers }
   }

@@ -26,9 +26,10 @@ interface RegisteredTool {
   ) => Promise<{ content: Array<{ type: string; text: string }>; details: unknown }>
 }
 
-function makeMockPi() {
+function makeMockPi(overrides: { flags?: Record<string, unknown> } = {}) {
   const tools: RegisteredTool[] = []
   const handlers: Record<string, Array<(...args: unknown[]) => unknown>> = {}
+  const registered: { flags: string[]; commands: Array<{ name: string; def: { description?: string; handler: (...args: unknown[]) => unknown } }> } = { flags: [], commands: [] }
   const pi = {
     registerTool: vi.fn((tool: RegisteredTool) => {
       tools.push(tool)
@@ -38,8 +39,25 @@ function makeMockPi() {
       handlers[event].push(handler)
       return () => {}
     }),
+    registerFlag: vi.fn((name: string) => { registered.flags.push(name) }),
+    registerCommand: vi.fn((name: string, def: { description?: string; handler: (...args: unknown[]) => unknown }) => {
+      registered.commands.push({ name, def })
+    }),
+    getFlag: (name: string) => overrides.flags?.[name] ?? false,
   }
-  return { pi: pi as unknown as ExtensionAPI, tools, handlers }
+  return { pi: pi as unknown as ExtensionAPI, tools, handlers, registered }
+}
+
+function makeGuardCtx(overrides: { ui?: Record<string, unknown> } = {}): ExtensionContext {
+  return {
+    ...makeCtx(),
+    ui: {
+      ...makeCtx().ui,
+      setStatus: overrides.ui?.setStatus ?? (() => {}),
+      notify: overrides.ui?.notify ?? (() => {}),
+      theme: { fg: (_c: string, s: string) => s, bg: (_c: string, s: string) => s, bold: (s: string) => s },
+    },
+  } as unknown as ExtensionContext
 }
 
 function makeCtx(overrides: { hasUI?: boolean; confirm?: () => Promise<boolean> } = {}): ExtensionContext {
@@ -83,10 +101,15 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
     await rm(agentDir, { recursive: true, force: true })
   })
 
-  function build(config: PiConfig = {}): { result: PiWebStackResult; tools: RegisteredTool[] } {
-    const mock = makeMockPi()
+  function build(config: PiConfig = {}, mockOverrides?: { flags?: Record<string, unknown> }): {
+    result: PiWebStackResult
+    tools: RegisteredTool[]
+    handlers: Record<string, Array<(...args: unknown[]) => unknown>>
+    registered: { flags: string[]; commands: Array<{ name: string; def: { description?: string; handler: (...args: unknown[]) => unknown } }> }
+  } {
+    const mock = makeMockPi(mockOverrides)
     const result = buildPiWebStack(mock.pi, config)
-    return { result, tools: mock.tools }
+    return { result, tools: mock.tools, handlers: mock.handlers, registered: mock.registered }
   }
 
   it('registers the seven core tools (browser off by default)', () => {
@@ -103,7 +126,7 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
     ])
     expect(result.stack.config.search.mode).toBe('fallback')
     // host identity + state dir under the agent dir
-    expect(result.host.identity).toEqual({ name: 'pi', version: '1.0.2' })
+    expect(result.host.identity).toEqual({ name: 'pi', version: '1.1.0' })
     expect(result.host.paths.stateDir).toBe(join(agentDir, 'web-search'))
   })
 
@@ -236,6 +259,66 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
       ),
     ).rejects.toThrow('Error (BROWSER_APPROVAL_DENIED)')
     await result.dispose()
+  })
+
+  describe('browser-guard (session toggle for the approval gate)', () => {
+    it('registers the flag and the command', () => {
+      const { registered } = build()
+      expect(registered.flags).toContain('browser-guard-off')
+      expect(registered.commands.map(c => c.name)).toContain('browser-guard')
+    })
+
+    it('enabled by default: fail-closed without an execution context', async () => {
+      const { result } = build({ browser: { enabled: true } })
+      await expect(result.host.approve?.({ kind: 'browser_navigate', description: 'x' })).rejects.toMatchObject({
+        code: 'BROWSER_APPROVAL_UNAVAILABLE',
+      })
+    })
+
+    it('toggle off: approve allows immediately, even without an execution context', async () => {
+      const { result, registered } = build({ browser: { enabled: true } })
+      const cmd = registered.commands.find(c => c.name === 'browser-guard')!
+      await cmd.def.handler('', makeGuardCtx())
+      await expect(result.host.approve?.({ kind: 'browser_evaluate', description: 'x' })).resolves.toBe(true)
+    })
+
+    it('toggle twice: gate re-enabled (fail-closed again)', async () => {
+      const { result, registered } = build({ browser: { enabled: true } })
+      const cmd = registered.commands.find(c => c.name === 'browser-guard')!
+      await cmd.def.handler('', makeGuardCtx())
+      await cmd.def.handler('', makeGuardCtx())
+      await expect(result.host.approve?.({ kind: 'browser_navigate', description: 'x' })).rejects.toMatchObject({
+        code: 'BROWSER_APPROVAL_UNAVAILABLE',
+      })
+    })
+
+    it('status badge set on disable, cleared on re-enable', async () => {
+      const { registered } = build({ browser: { enabled: true } })
+      const cmd = registered.commands.find(c => c.name === 'browser-guard')!
+      const statuses: Array<[string, unknown]> = []
+      const ctx = makeGuardCtx({ ui: { setStatus: (k: string, v: unknown) => statuses.push([k, v]) } })
+      await cmd.def.handler('', ctx)
+      expect(statuses.at(-1)?.[0]).toBe(' browser-guard')
+      expect(String(statuses.at(-1)?.[1])).toContain('BR OFF')
+      await cmd.def.handler('', ctx)
+      expect(statuses.at(-1)).toEqual([' browser-guard', undefined])
+    })
+
+    it('--browser-guard-off: session_start enables the opt-out and sets the badge', async () => {
+      const { result, handlers } = build({ browser: { enabled: true } }, { flags: { '--browser-guard-off': true } })
+      const fire = handlers.session_start?.[0]
+      expect(typeof fire).toBe('function')
+      const statuses: Array<[string, unknown]> = []
+      const ctx = makeGuardCtx({ ui: { setStatus: (k: string, v: unknown) => statuses.push([k, v]) } })
+      await fire!({ reason: 'startup' }, ctx)
+      expect(statuses.at(-1)?.[0]).toBe(' browser-guard')
+      await expect(result.host.approve?.({ kind: 'browser_navigate', description: 'x' })).resolves.toBe(true)
+      // non-startup reasons (resume) must not touch the state
+      const statuses2: Array<[string, unknown]> = []
+      const ctx2 = makeGuardCtx({ ui: { setStatus: (k: string, v: unknown) => statuses2.push([k, v]) } })
+      await fire!({ reason: 'resume' }, ctx2)
+      expect(statuses2).toEqual([])
+    })
   })
 
   it('applies the configured store path', () => {

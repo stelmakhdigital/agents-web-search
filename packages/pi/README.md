@@ -18,8 +18,8 @@ a git repo in **one command** (it clones into its install dir and runs
 ships inside it):
 
 ```sh
-pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.0.2   # user scope
-pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.0.2  # project scope
+pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.1.0   # user scope
+pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.1.0  # project scope
 pi list                                                # verify
 # update: pi update (for a pinned ref — fetch origin <ref>)
 ```
@@ -97,6 +97,12 @@ Browser actions are permission-gated through the Pi dialog
 click/type; `never` disables the gate. **Fail-closed**: when no dialog-capable
 UI is available (`--mode json` / `-p`), the action is **denied** — never
 executed silently.
+
+**Session toggle** (same convention as pi-extensions bash-guard/dir-guard):
+`/browser-guard` turns the confirmations OFF for the current session
+(footer badge `🌐 BR OFF`), and back on again; `--browser-guard-off` starts
+the session already in the no-confirm state. The state is in-memory (per
+session, not persisted); subagent processes always get a fresh, enabled gate.
 
 ## v0.1 limitations
 
