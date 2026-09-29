@@ -70,7 +70,8 @@ All config is local. Secrets stay out of the file (env or explicit keys):
   "browser": {
     "enabled": false,                 // ADR-005: opt-in
     "headless": true,
-    "approval": "navigate"            // "never" | "navigate" (default) | "all"
+    "approval": "navigate",           // "never" | "navigate" (default) | "all"
+    "allowPrivateNetworks": false     // SSRF guard: private/reserved hosts are blocked by default
   },
   "providers": {
     "exa":    { "apiKeyEnv": "EXA_API_KEY", "maxUses": 3 },
@@ -88,6 +89,7 @@ All config is local. Secrets stay out of the file (env or explicit keys):
   is `~/.pi/agent`, overridable with `$PI_CODING_AGENT_DIR` (used by tests).
 - **Config applies at startup** (the extension reads it once per process).
 - `browser` needs `npx playwright install chromium` once (headless shell).
+- **SSRF guard**: by default the browser (and `web_fetch` / `web_platform_search`) **blocks private/reserved addresses** — LAN (`192.168.x.x`, `10.x`, …) and loopback (`127.0.0.1`) ⇒ `Error (BROWSER_SSRF_BLOCKED)`. To reach local services (dev dashboards, local APIs) set `"allowPrivateNetworks": true` in the corresponding section (`browser` / `fetch` / `platforms`). This is a network boundary, not a permission gate — the `/browser-guard` toggle does not affect it.
 
 ### Browser approval (fail-closed)
 
