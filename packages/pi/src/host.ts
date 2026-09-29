@@ -102,13 +102,17 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
 
   // Browser approval gate toggles. Persistent in the shared
   // `<agentDir>/guard-state.json` (same file and key convention as
-  // pi-extensions bash-guard/dir-guard) — survives /reload and pi -c
-  // (resume); a NEW session (startup/new/fork) resets to the defaults in
+  // pi-extensions bash-guard/dir-guard) — survives /reload, pi -c and
+  // session switches; a NEW session (pi) resets to the defaults in
   // session_start. `disabled` means the user explicitly turned confirmations
   // OFF (`/browser-guard` or `--browser-guard-off`) → approve allows
   // immediately. The fail-closed rules (no context / no dialog UI ⇒ deny)
   // apply only when the gate is enabled. Subagent processes deliberately get
   // a fresh (enabled) state — the file is NOT read there.
+  //
+  // pi 0.99.0 nuance: process startup (both `pi` and `pi -c`) emits
+  // session_start with reason "startup"; a continuation (pi -c / --session)
+  // is recognized by a non-empty session history.
   const FRESH_GUARD = { disabled: false, skipClickType: false }
   const guardStateFile = join(agentDir, 'guard-state.json')
   const isSubagentProcess = Number(process.env.PI_SUBAGENT_DEPTH ?? '0') >= 1
@@ -250,11 +254,26 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
   })
 
   pi.on('session_start', (event, ctx) => {
-    // Новая сессия (startup/new/fork) → дефолты (врата ON) + persist;
-    // продолжение/перезагрузка (resume/reload) → сохранённое состояние
-    // (factory уже перечитал guard-state.json). Субагент не сбрасывает.
-    // (parity with bash-guard/dir-guard in pi-extensions)
-    if (!isSubagentProcess && event.reason !== 'resume' && event.reason !== 'reload') {
+    // Новая сессия (startup с пустой историей, new) → дефолты (врата ON) +
+    // persist; продолжение (pi -c / --session / resume / reload / fork) →
+    // сохранённое состояние (factory уже перечитал guard-state.json).
+    // Субагент не сбрасывает. (parity with bash-guard/dir-guard,
+    // shouldResetGuards in pi-extensions)
+    const shouldReset =
+      !isSubagentProcess &&
+      event.reason !== 'resume' &&
+      event.reason !== 'reload' &&
+      event.reason !== 'fork' &&
+      !((event.reason === 'startup' || event.reason === undefined) &&
+        (() => {
+          try {
+            const msgs = ctx.sessionManager?.buildSessionContext?.().messages
+            return Array.isArray(msgs) && msgs.length > 0
+          } catch {
+            return false
+          }
+        })())
+    if (shouldReset) {
       browserGuard.disabled = false
       browserGuard.skipClickType = false
       saveBrowserGuard()

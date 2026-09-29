@@ -383,7 +383,15 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
       await expect(resultB.host.approve?.({ kind: 'browser_navigate', description: 'y' })).resolves.toBe(true)
       await handlers.session_start?.[0]!({ reason: 'resume' }, makeGuardCtx())
       await expect(resultB.host.approve?.({ kind: 'browser_navigate', description: 'z' })).resolves.toBe(true)
-      // a genuinely new session resets to defaults (gate on ⇒ fail-closed) and persists
+      // startup WITH an existing history (pi -c / --session) keeps the state
+      const histCtx = {
+        ...makeGuardCtx(),
+        sessionManager: { buildSessionContext: () => ({ messages: [{}] }) },
+      } as unknown as ExtensionContext
+      await handlers.session_start?.[0]!({ reason: 'startup' }, histCtx)
+      await expect(resultB.host.approve?.({ kind: 'browser_navigate', description: 'h' })).resolves.toBe(true)
+      // a genuinely new session (startup, empty history) resets to defaults
+      // (gate on ⇒ fail-closed) and persists
       await handlers.session_start?.[0]!({ reason: 'startup' }, makeGuardCtx())
       await expect(resultB.host.approve?.({ kind: 'browser_navigate', description: 'w' })).rejects.toMatchObject({
         code: 'BROWSER_APPROVAL_UNAVAILABLE',
@@ -393,7 +401,7 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
     })
 
     it('--browser-guard-off: session_start enables the opt-out and sets the badge', async () => {
-      const { result, handlers } = build({ browser: { enabled: true } }, { flags: { '--browser-guard-off': true } })
+      const { result, handlers } = build({ browser: { enabled: true } }, { flags: { 'browser-guard-off': true } })
       const fire = handlers.session_start?.[0]
       expect(typeof fire).toBe('function')
       const statuses: Array<[string, unknown]> = []
