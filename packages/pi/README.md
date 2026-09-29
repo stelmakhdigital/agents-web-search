@@ -89,7 +89,7 @@ All config is local. Secrets stay out of the file (env or explicit keys):
   is `~/.pi/agent`, overridable with `$PI_CODING_AGENT_DIR` (used by tests).
 - **Config applies at startup** (the extension reads it once per process).
 - `browser` needs `npx playwright install chromium` once (headless shell).
-- **SSRF guard**: by default the browser (and `web_fetch` / `web_platform_search`) **blocks private/reserved addresses** — LAN (`192.168.x.x`, `10.x`, …) and loopback (`127.0.0.1`) ⇒ `Error (BROWSER_SSRF_BLOCKED)`. To reach local services (dev dashboards, local APIs) set `"allowPrivateNetworks": true` in the corresponding section (`browser` / `fetch` / `platforms`). This is a network boundary, not a permission gate — the `/browser-guard` toggle does not affect it.
+- **SSRF guard**: by default the browser (and `web_fetch` / `web_platform_search`) **blocks private/reserved addresses** — LAN (`192.168.x.x`, `10.x`, …) and loopback (`127.0.0.1`) ⇒ `Error (BROWSER_SSRF_BLOCKED)`. To reach local services (dev dashboards, local APIs) set `"allowPrivateNetworks": true` in the corresponding section (`browser` / `fetch` / `platforms`). This is a network boundary, not a permission gate — the `/browser-guard` toggle does not affect it. For the **browser** only, `/browser-guard:ssrf` flips the guard for the current session without touching the file (footer badge `🔓 SSRF OFF`); the state is persistent like the other guard toggles (`guard-state.json`, survives `/reload` and `pi -c`), and a new session falls back to the config value.
 
 ### Browser approval (fail-closed)
 
@@ -112,6 +112,10 @@ lets `browser_click`/`browser_type` run without a dialog while
 `browser_navigate`/`browser_evaluate` keep asking (footer badge `🖱 C/T OFF`);
 only meaningful with the `all` approval policy, and fail-closed without a
 dialog UI is never relaxed.
+Network-level override: `/browser-guard:ssrf` toggles the browser SSRF guard
+(allow/block private & reserved addresses) for the session, with the same
+persistence rules (new session ⇒ config `browser.allowPrivateNetworks`)
+and footer badge `🔓 SSRF OFF`.
 
 ## v0.1 limitations
 

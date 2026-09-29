@@ -4,6 +4,25 @@
 версии пакетов синхронизированы (`dsh`, `pi`; `contract` — внутренний,
 private).
 
+## [1.4.5] — 2026-09-30
+
+`/browser-guard:ssrf` — сессионный тумблер SSRF-гарда браузера (разрешить/
+заблокировать private/reserved адреса: LAN, 127.0.0.1), с той же
+персистентностью, что у остальных guard-тумблеров.
+
+### Добавлено
+
+- `packages/pi`: команда `/browser-guard:ssrf` — переключает SSRF-гард в
+  рантайме (core-поле `allowPrivateNetworks` мутируется на живом browser-
+  session, будущие сессии штампуются обёрткой `open()`; config-значение
+  `browser.allowPrivateNetworks` остаётся дефолтом для новых сессий).
+  Состояние персистентно в `guard-state.json` (ключ `browser-guard.ssr`):
+  переживает `/reload` и `pi -c`; новая сессия (pi) сбрасывается в
+  config-значение. Бейдж ` 🔓 SSRF OFF ` в футере. Браузерный модуль
+  выключен — warning без изменения состояния.
+- version: root и `@agents-web-search/pi` → `1.4.5` (+ identity pi).
+  Доки: pi README (секция SSRF guard).
+
 ## [1.4.0] — 2026-09-29
 
 Персистентность toggle'ов browser-guard (синхронно с pi-extensions 0.5.0).

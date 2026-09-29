@@ -113,7 +113,15 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
   // pi 0.99.0 nuance: process startup (both `pi` and `pi -c`) emits
   // session_start with reason "startup"; a continuation (pi -c / --session)
   // is recognized by a non-empty session history.
-  const FRESH_GUARD = { disabled: false, skipClickType: false }
+  //
+  // `ssrf` — runtime override of the browser SSRF guard (allow
+  // private/reserved addresses). The config-file value
+  // (`browser.allowPrivateNetworks` in web-search.json) is the default; the
+  // persisted toggle overrides it for the session lifetime, with the same
+  // persistence/reset rules as `disabled`/`skipClickType` (a new session
+  // falls back to the config value).
+  const cfgAllowPrivate = config.browser?.allowPrivateNetworks ?? false
+  const FRESH_GUARD = { disabled: false, skipClickType: false, ssrf: cfgAllowPrivate }
   const guardStateFile = join(agentDir, 'guard-state.json')
   const isSubagentProcess = Number(process.env.PI_SUBAGENT_DEPTH ?? '0') >= 1
   const browserGuard = isSubagentProcess
@@ -122,7 +130,11 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
         try {
           const all = JSON.parse(readFileSync(guardStateFile, 'utf8')) as Record<string, Record<string, unknown>>
           const st = all['browser-guard'] ?? {}
-          return { disabled: Boolean(st.disabled), skipClickType: Boolean(st.skipClickType) }
+          return {
+            disabled: Boolean(st.disabled),
+            skipClickType: Boolean(st.skipClickType),
+            ssrf: typeof st.ssrf === 'boolean' ? st.ssrf : cfgAllowPrivate,
+          }
         } catch {
           return { ...FRESH_GUARD }
         }
@@ -135,7 +147,11 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
     } catch {
       /* absent/corrupt ⇒ fresh */
     }
-    all['browser-guard'] = { disabled: browserGuard.disabled, skipClickType: browserGuard.skipClickType }
+    all['browser-guard'] = {
+      disabled: browserGuard.disabled,
+      skipClickType: browserGuard.skipClickType,
+      ssrf: browserGuard.ssrf,
+    }
     writeFileSync(guardStateFile, JSON.stringify(all, null, 2))
   }
   // Leading space: pi's footer sorts status entries alphabetically and
@@ -143,7 +159,7 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
   const GUARD_STATUS_KEY = ' browser-guard'
 
   const host: HostAdapter = {
-    identity: { name: 'pi', version: '1.4.0' },
+    identity: { name: 'pi', version: '1.4.5' },
     config: coreConfig,
     paths: { stateDir, tempDir: join(stateDir, 'temp') },
 
@@ -238,13 +254,16 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
   // --- browser-guard: session toggle for the approval gate -----------------
   const refreshGuardStatus = (ctx: ExtensionContext): void => {
     if (!ctx.hasUI) return
-    if (browserGuard.disabled || browserGuard.skipClickType) {
-      const { theme } = ctx.ui
-      const label = browserGuard.disabled ? ' 🌐 BR OFF ' : ' 🖱 C/T OFF '
-      ctx.ui.setStatus(GUARD_STATUS_KEY, theme.bg('toolErrorBg', theme.bold(theme.fg('error', label))))
-    } else {
+    const parts: string[] = []
+    if (browserGuard.disabled) parts.push(' 🌐 BR OFF ')
+    else if (browserGuard.skipClickType) parts.push(' 🖱 C/T OFF ')
+    if (browserGuard.ssrf) parts.push(' 🔓 SSRF OFF ')
+    if (parts.length === 0) {
       ctx.ui.setStatus(GUARD_STATUS_KEY, undefined)
+      return
     }
+    const { theme } = ctx.ui
+    ctx.ui.setStatus(GUARD_STATUS_KEY, theme.bg('toolErrorBg', theme.bold(theme.fg('error', parts.join('')))))
   }
 
   pi.registerFlag('browser-guard-off', {
@@ -267,7 +286,9 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
       !((event.reason === 'startup' || event.reason === undefined) &&
         (() => {
           try {
-            const msgs = ctx.sessionManager?.buildSessionContext?.().messages
+            const msgs = (ctx.sessionManager as {
+        buildSessionContext?: () => { messages?: unknown[] }
+      } | undefined)?.buildSessionContext?.().messages
             return Array.isArray(msgs) && msgs.length > 0
           } catch {
             return false
@@ -276,6 +297,7 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
     if (shouldReset) {
       browserGuard.disabled = false
       browserGuard.skipClickType = false
+      browserGuard.ssrf = cfgAllowPrivate
       saveBrowserGuard()
     }
     if (event.reason === 'startup' && pi.getFlag('browser-guard-off') === true && !browserGuard.disabled) {
@@ -321,6 +343,49 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
   // The adapter drives tool registration (ADR-002 §2): project every core
   // tool spec to a Pi tool (the core itself never touches the host API).
   const disposeRegistered = host.registerTools(stack.tools())
+
+  // --- browser-guard:ssrf — runtime override of the SSRF flag --------------
+  // The core bakes `browser.allowPrivateNetworks` into the provider at stack
+  // construction; the provider and every session keep it in a public mutable
+  // field, so the override (1) stamps future sessions through a one-time
+  // open() wrap and (2) flips the live session's field in place.
+  const manager = stack.browser
+  if (manager !== undefined && typeof manager.open === 'function') {
+    const origOpen = manager.open.bind(manager)
+    manager.open = (async (agent?: unknown, options?: Parameters<typeof origOpen>[1], signal?: AbortSignal) => {
+      const session = await origOpen(agent, options, signal)
+      ;(session as unknown as { allowPrivateNetworks: boolean }).allowPrivateNetworks = browserGuard.ssrf
+      return session
+    }) as typeof manager.open
+  }
+  const setSsrf = (allow: boolean): void => {
+    browserGuard.ssrf = allow
+    const live = stack.browser?.session?.()
+    if (live !== undefined) (live as unknown as { allowPrivateNetworks: boolean }).allowPrivateNetworks = allow
+  }
+
+  pi.registerCommand('browser-guard:ssrf', {
+    description:
+      'Toggle the browser SSRF guard: allow/block private & reserved addresses (LAN, 127.0.0.1). A network boundary — independent of the confirmation gate.',
+    handler: async (_args, ctx) => {
+      if (manager === undefined) {
+        ctx.ui.notify(
+          'browser-guard:ssrf: the browser module is off (browser.enabled in web-search.json) — nothing to toggle.',
+          'warning',
+        )
+        return
+      }
+      setSsrf(!browserGuard.ssrf)
+      saveBrowserGuard()
+      refreshGuardStatus(ctx)
+      ctx.ui.notify(
+        browserGuard.ssrf
+          ? 'browser-guard:ssrf — SSRF guard OFF: private/reserved addresses (LAN, 127.0.0.1) are allowed. Remembered: survives /reload and pi -c; a new session falls back to the config value (browser.allowPrivateNetworks). Run /browser-guard:ssrf again to re-enable the guard.'
+          : 'browser-guard:ssrf — SSRF guard back on: private/reserved addresses are blocked (BROWSER_SSRF_BLOCKED).',
+        browserGuard.ssrf ? 'warning' : 'info',
+      )
+    },
+  })
 
   return {
     stack,

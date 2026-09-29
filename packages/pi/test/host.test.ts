@@ -128,7 +128,7 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
     ])
     expect(result.stack.config.search.mode).toBe('fallback')
     // host identity + state dir under the agent dir
-    expect(result.host.identity).toEqual({ name: 'pi', version: '1.4.0' })
+    expect(result.host.identity).toEqual({ name: 'pi', version: '1.4.5' })
     expect(result.host.paths.stateDir).toBe(join(agentDir, 'web-search'))
   })
 
@@ -360,14 +360,14 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
       const cmd = registered.commands.find(c => c.name === 'browser-guard')!
       const file = join(agentDir, 'guard-state.json')
       await cmd.def.handler('', makeGuardCtx()) // toggle off
-      expect(JSON.parse(readFileSync(file, 'utf8'))['browser-guard']).toEqual({ disabled: true, skipClickType: false })
+      expect(JSON.parse(readFileSync(file, 'utf8'))['browser-guard']).toEqual({ disabled: true, skipClickType: false, ssrf: false })
       // A new build (reloaded factory) picks the state up from the file:
       // approve allows without a dialog even without an execution context.
       const reloaded = buildPiWebStack(makeMockPi().pi, { browser: { enabled: true } })
       await expect(reloaded.host.approve?.({ kind: 'browser_navigate', description: 'x' })).resolves.toBe(true)
       // restore the original state
       await cmd.def.handler('', makeGuardCtx())
-      expect(JSON.parse(readFileSync(file, 'utf8'))['browser-guard']).toEqual({ disabled: false, skipClickType: false })
+      expect(JSON.parse(readFileSync(file, 'utf8'))['browser-guard']).toEqual({ disabled: false, skipClickType: false, ssrf: false })
       await result.dispose()
     })
 
@@ -398,6 +398,57 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
       })
       await result.dispose()
       await resultB.dispose()
+    })
+
+    it('browser-guard:ssrf — toggles the live session in place and persists', async () => {
+      const { result, registered } = build({ browser: { enabled: true } })
+      const cmd = registered.commands.find(c => c.name === 'browser-guard:ssrf')!
+      expect(cmd).toBeDefined()
+      const file = join(agentDir, 'guard-state.json')
+      // fake open session: the live session's field must be flipped in place
+      const live = { allowPrivateNetworks: false }
+      ;(result.stack as unknown as { browser: unknown }).browser = { session: () => live, open: async () => live }
+      await cmd.def.handler('', makeGuardCtx()) // SSRF guard OFF (config default is false)
+      expect(live.allowPrivateNetworks).toBe(true)
+      expect(JSON.parse(readFileSync(file, 'utf8'))['browser-guard'].ssrf).toBe(true)
+      await cmd.def.handler('', makeGuardCtx()) // back on
+      expect(live.allowPrivateNetworks).toBe(false)
+      expect(JSON.parse(readFileSync(file, 'utf8'))['browser-guard'].ssrf).toBe(false)
+      await result.dispose()
+    })
+
+    it('browser-guard:ssrf — persisted state is restored by a new build', async () => {
+      const file = join(agentDir, 'guard-state.json')
+      const { result, registered } = build({ browser: { enabled: true } })
+      await registered.commands.find(c => c.name === 'browser-guard:ssrf')!.def.handler('', makeGuardCtx()) // ON (config default false)
+      expect(JSON.parse(readFileSync(file, 'utf8'))['browser-guard'].ssrf).toBe(true)
+      // new factory (pi -c / reload) restores ssrf=true from the file ⇒ the
+      // next toggle goes back to OFF (not on)
+      const second = build({ browser: { enabled: true } })
+      await second.registered.commands.find(c => c.name === 'browser-guard:ssrf')!.def.handler('', makeGuardCtx())
+      expect(JSON.parse(readFileSync(file, 'utf8'))['browser-guard'].ssrf).toBe(false)
+      await result.dispose()
+      await second.result.dispose()
+    })
+
+    it('browser-guard:ssrf — badge shows SSRF OFF, cleared on re-enable', async () => {
+      const { registered } = build({ browser: { enabled: true } })
+      const cmd = registered.commands.find(c => c.name === 'browser-guard:ssrf')!
+      const statuses: Array<[string, unknown]> = []
+      const ctx = makeGuardCtx({ ui: { setStatus: (k: string, v: unknown) => statuses.push([k, v]) } })
+      await cmd.def.handler('', ctx)
+      expect(statuses.at(-1)?.[0]).toBe(' browser-guard')
+      expect(String(statuses.at(-1)?.[1])).toContain('SSRF OFF')
+      await cmd.def.handler('', ctx)
+      expect(statuses.at(-1)).toEqual([' browser-guard', undefined])
+    })
+
+    it('browser-guard:ssrf — browser module off: warning, no state written', async () => {
+      const { registered } = build() // browser disabled by default
+      const cmd = registered.commands.find(c => c.name === 'browser-guard:ssrf')!
+      let msg = ''
+      await cmd.def.handler('', makeGuardCtx({ ui: { notify: (m: string) => { msg = String(m) } } }))
+      expect(msg).toContain('browser module is off')
     })
 
     it('--browser-guard-off: session_start enables the opt-out and sets the badge', async () => {
