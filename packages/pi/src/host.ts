@@ -34,6 +34,7 @@ import type {
 } from '@earendil-works/pi-coding-agent'
 
 import { toCoreConfig, type PiConfig } from './config.ts'
+import { searxngAlive, searxngEndpoint, searxngInEngines } from './searxng-health.ts'
 import { toTypeBoxParameters } from './schema.ts'
 import { truncateForPi } from './truncate.ts'
 
@@ -307,6 +308,26 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
     // Sync the badge on every reason (incl. "reload": the factory re-runs and
     // the state is restored from guard-state.json).
     refreshGuardStatus(ctx)
+
+    // SearXNG health-check (startup only, never in subagent processes, and
+    // only when the searxng engine participates in the chain): a dead local
+    // instance is not an error — the router falls through to ddg+bing — the
+    // user just gets a one-time hint. Fire-and-forget: the session start is
+    // never blocked (the probe itself has an 800 ms timeout).
+    if (event.reason === 'startup' && !isSubagentProcess && searxngInEngines(config)) {
+      const endpoint = searxngEndpoint(config)
+      void searxngAlive(endpoint)
+        .then((alive) => {
+          if (alive || !ctx.hasUI || typeof ctx.ui?.notify !== 'function') return
+          ctx.ui.notify(
+            `agents-web-search: SearXNG недоступен на ${endpoint} — поиск пойдёт через ddg+bing. `
+              + 'Поднять локальный инстанс: скрипт scripts/searxng/install.sh из пакета agents-web-search '
+              + '(native venv + systemd user unit, без docker). Отключить проверку: убрать searxng из search.engines в web-search.json.',
+            'warning',
+          )
+        })
+        .catch(() => {}) // never surface a probe failure beyond the warning path
+    }
   })
 
   pi.registerCommand('browser-guard', {

@@ -59,7 +59,7 @@ All config is local. Secrets stay out of the file (env or explicit keys):
 // ~/.pi/agent/web-search.json  — OPTIONAL; absent ⇒ core defaults
 {
   "search": {
-    "engines": ["exa", "ddg"],        // default: ddg, bing (fallback mode)
+    "engines": ["exa", "ddg"],        // default: searxng, ddg, bing (fallback mode; searxng is optional — see SearXNG below)
     "mode": "fuse",                   // "fallback" (default) | "fuse" (parallel + RRF)
     "enrich": { "enabled": true, "fetchLimit": 6, "keep": 5 },
     "storePath": ""                   // default: <agentDir>/web-search/web.db
@@ -90,6 +90,43 @@ All config is local. Secrets stay out of the file (env or explicit keys):
 - **Config applies at startup** (the extension reads it once per process).
 - `browser` needs `npx playwright install chromium` once (headless shell).
 - **SSRF guard**: by default the browser (and `web_fetch` / `web_platform_search`) **blocks private/reserved addresses** — LAN (`192.168.x.x`, `10.x`, …) and loopback (`127.0.0.1`) ⇒ `Error (BROWSER_SSRF_BLOCKED)`. To reach local services (dev dashboards, local APIs) set `"allowPrivateNetworks": true` in the corresponding section (`browser` / `fetch` / `platforms`). This is a network boundary, not a permission gate — the `/browser-guard` toggle does not affect it. For the **browser** only, `/browser-guard:ssrf` flips the guard for the current session without touching the file (footer badge `🔓 SSRF OFF`); the state is persistent like the other guard toggles (`guard-state.json`, survives `/reload` and `pi -c`), and a new session falls back to the config value.
+
+## SearXNG (local instance)
+
+The default engine chain is `searxng, ddg, bing`: the core first tries a
+**local SearXNG instance** (multi-engine metasearch, no cloud APIs, no
+data brokers), then falls through to the keyless public engines. The
+instance is optional — when it is not running the search simply goes to
+`ddg`/`bing` (a refused connection fails immediately; a silently dropping
+host is cut by a ~3 s connect guard, then the engine cools down).
+
+One-command install (native, no docker: Python venv + systemd **user** unit,
+bind `127.0.0.1:8080` = the core's `SEARXNG_DEFAULT_ENDPOINT`):
+
+```bash
+git clone https://github.com/stelmakhdigital/agents-web-search.git \
+  && agents-web-search/scripts/searxng/install.sh
+```
+
+What it does: creates a venv at `~/.pi/agent/web-search/searxng/venv`,
+clones the official SearXNG repo (the PyPI package `searxng` is an
+unrelated MCP server — not used), installs the engine + waitress, writes a
+minimal `settings.yml` (`search.formats: [html, json]`, `limiter: false`,
+`valkey.url: false`, persistent secret key) and starts `searxng.service` as
+a systemd user unit. Idempotent; `update` pulls the latest source (rolling
+release), `status` shows the unit state + probes, `uninstall` removes
+everything. Requires python ≥ 3.9, git; without a systemd user session it
+prints the manual start command.
+
+**Startup health-check**: on `session_start` (reason `startup`, once per pi
+process, never in subagent processes) the adapter probes
+`{endpoint}/healthz` with an 800 ms timeout, fire-and-forget — the session
+start is never blocked. A dead instance produces one warning:
+`agents-web-search: SearXNG недоступен на <endpoint> — поиск пойдёт через
+ddg+bing …` with the install-script hint. The endpoint comes from
+`providers.searxng.endpoint` or the core default. To disable the check,
+remove `searxng` from `search.engines` in `web-search.json` (an unset
+`search.engines` inherits the core default chain, which includes it).
 
 ### Browser approval (fail-closed)
 

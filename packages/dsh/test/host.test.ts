@@ -29,7 +29,7 @@ describe('buildDshWebStack (real core, mocked host modules)', () => {
     const { ctx, registered } = makeCtx()
     const result = buildDshWebStack(ctx as never, config())
     expect(result.stack.config.store.path).toBe(join(holder.baseDir, 'web.db'))
-    expect(result.stack.config.search.engines).toEqual(['ddg', 'bing'])
+    expect(result.stack.config.search.engines).toEqual(['searxng', 'ddg', 'bing'])
     const names = registered.tools.map(t => t.name)
     expect(names).toEqual(['get_search_content', 'web_platform_search', 'web_history', 'web_search_stats', 'web_cache_clear'])
     // The real core's web_history schema projected to DSH (min/max dropped, enum kept).
