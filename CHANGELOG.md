@@ -4,6 +4,53 @@
 версии пакетов синхронизированы (`dsh`, `pi`; `contract` — внутренний,
 private).
 
+## [1.4.7] — 2026-11-07
+
+Правки из ревью: единый источник правды конфига, видимость health-check
+для модели, диагностика движков, атомарность guard-state, пин SearXNG,
+автообновление пинов доков. Vendor ядра — `agents-web-search-core-1.1.0.tgz`
+(core: web_search_stats с состоянием движков, fuse-тесты, без
+`extended.contentCache`, версия 1.1.0).
+
+### Изменено
+
+- `packages/pi`: конфиг теперь наследует `CoreConfig` (единый источник
+  правды) — любой ключ ядра доступен в `web-search.json` без правок
+  адаптера; Pi-only остался блок `history`. Легаси-поля pre-1.4.7
+  (`search.storePath`, `search.embedEndpoint`/`embedModel`) нормализуются
+  при загрузке; core-поля при конфликте старше. Дрейф ликвидирован:
+  `search.embed.timeoutMs` и прочие ключи ядра больше не терялись.
+- `packages/pi`: `HostAdapter.log` больше не no-op — при
+  `WEB_SEARCH_DEBUG=1` структурные строки поиска/фетча пишутся в
+  `<agentDir>/web-search/log.txt`.
+- `packages/pi`: запись `guard-state.json` атомарна (tmp + rename) — файл
+  общий с pi-extensions, параллельные процессы больше не могут оставить
+  битый JSON.
+- `packages/dsh`: дефолт `search.engines` и бандл-пин
+  `local-web.cordis.yml` приведены к цепочке ядра
+  (`searxng, ddg, bing`); версия пакета 1.0.2.
+- `scripts/searxng/install.sh`: исходник пинится на конкретный коммит
+  (`PINNED_REF`; свежий мастер — через `update`, он резолвит master через
+  `git ls-remote` и ходит fetch по SHA); новые режимы `doctor` (полная
+  проверка окружения и инстанса) и `linger` (автостарт юнита после ребута;
+  в `status` добавлено предупреждение о выключенном linger).
+- `scripts/update-core-readme-pins.sh` — обновляет пины
+  `agents-web-search.git@vX.Y.Z` в README ядра до текущей версии
+  (закрывает ручные коммиты вида «Доки: пин установки адаптеров»).
+- version: root и `@agents-web-search/pi` → `1.4.7` (+ identity pi).
+
+### Добавлено
+
+- `packages/pi`: при мёртвом SearXNG модель получает объяснение — первый
+  результат `web_search` сессии содержит note о fallback на ddg/bing;
+  факт падения инстанса фиксируется записью сессии
+  `web-search-searxng-down` (persist, вне LLM-контекста).
+
+### Обновлено
+
+- `.vendor/agents-web-search-core-1.1.0.tgz` пересобран из
+  core-web-search@master (1.1.0).
+
 ## [1.4.6] — 2026-11-07
 
 Автозапуск локального SearXNG: установочный скрипт (native venv + systemd

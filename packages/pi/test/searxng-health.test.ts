@@ -126,6 +126,7 @@ describe('session_start health-check (real host, mocked fetch)', () => {
 
   function build(config: PiConfig) {
     const handlers: Record<string, Array<(event: unknown, ctx: ExtensionContext) => unknown>> = {}
+    const appended: Array<{ type: string; data: unknown }> = []
     const pi = {
       registerTool: () => {},
       on: (event: string, handler: (event: unknown, ctx: ExtensionContext) => unknown) => {
@@ -136,12 +137,13 @@ describe('session_start health-check (real host, mocked fetch)', () => {
       registerFlag: () => {},
       registerCommand: () => {},
       getFlag: () => false,
+      appendEntry: (type: string, data?: unknown) => { appended.push({ type, data }) },
     }
     buildPiWebStack(pi as unknown as ExtensionAPI, config)
-    return handlers
+    return { handlers, appended }
   }
 
-  async function fireStartup(handlers: ReturnType<typeof build>, ctx: ExtensionContext): Promise<void> {
+  async function fireStartup(handlers: ReturnType<typeof build>['handlers'], ctx: ExtensionContext): Promise<void> {
     await handlers.session_start?.[0]?.({ reason: 'startup' }, ctx)
   }
 
@@ -149,7 +151,7 @@ describe('session_start health-check (real host, mocked fetch)', () => {
     const mock = vi.fn(async (_url: string, _init?: RequestInit) => new Response('OK', { status: 200 }))
     globalThis.fetch = mock as unknown as typeof globalThis.fetch
     const notifications: Array<{ message: string; level: string }> = []
-    const handlers = build({})
+    const { handlers } = build({})
     await fireStartup(handlers, makeCtx(notifications))
     await vi.waitFor(() => expect(mock).toHaveBeenCalledTimes(1), { timeout: 2_000 })
     expect(mock.mock.calls[0]?.[0]).toBe('http://localhost:8080/healthz')
@@ -157,28 +159,31 @@ describe('session_start health-check (real host, mocked fetch)', () => {
     expect(notifications).toEqual([])
   })
 
-  it('dead instance: exactly one warning notification with the endpoint and the install hint', async () => {
+  it('dead instance: one warning, one session-log entry, endpoint and install hint', async () => {
     const mock = vi.fn(async () => {
       throw new Error('ECONNREFUSED')
     })
     globalThis.fetch = mock as unknown as typeof globalThis.fetch
     const notifications: Array<{ message: string; level: string }> = []
-    const handlers = build({})
+    const { handlers, appended } = build({})
     await fireStartup(handlers, makeCtx(notifications))
     await vi.waitFor(() => expect(notifications).toHaveLength(1), { timeout: 2_000 })
     const [note] = notifications
-    expect(note).toBeDefined()
     expect(note?.level).toBe('warning')
     expect(note?.message).toContain('agents-web-search: SearXNG недоступен на http://localhost:8080')
     expect(note?.message).toContain('install.sh')
     // one probe only (not repeated per notification)
     expect(mock).toHaveBeenCalledTimes(1)
+    // the model-facing path: a session-log entry records the dead instance
+    expect(appended).toHaveLength(1)
+    expect(appended[0]?.type).toBe('web-search-searxng-down')
+    expect(appended[0]?.data).toEqual({ endpoint: 'http://localhost:8080' })
   })
 
   it('searxng not in engines: no probe at all', async () => {
     const mock = vi.fn(async () => new Response('OK', { status: 200 }))
     globalThis.fetch = mock as unknown as typeof globalThis.fetch
-    const handlers = build({ search: { engines: ['ddg', 'bing'] } })
+    const { handlers } = build({ search: { engines: ["ddg", "bing"] } })
     await fireStartup(handlers, makeCtx([]))
     await new Promise((r) => setTimeout(r, 100))
     expect(mock).not.toHaveBeenCalled()
@@ -187,7 +192,7 @@ describe('session_start health-check (real host, mocked fetch)', () => {
   it('custom endpoint from providers.searxng.endpoint is probed', async () => {
     const mock = vi.fn(async (_url: string, _init?: RequestInit) => new Response('OK', { status: 200 }))
     globalThis.fetch = mock as unknown as typeof globalThis.fetch
-    const handlers = build({ providers: { searxng: { endpoint: 'http://127.0.0.1:9090' } } })
+    const { handlers } = build({ providers: { searxng: { endpoint: "http://127.0.0.1:9090" } } })
     await fireStartup(handlers, makeCtx([]))
     await vi.waitFor(() => expect(mock).toHaveBeenCalledTimes(1), { timeout: 2_000 })
     expect(mock.mock.calls[0]?.[0]).toBe('http://127.0.0.1:9090/healthz')
@@ -198,7 +203,7 @@ describe('session_start health-check (real host, mocked fetch)', () => {
     const mock = vi.fn(async () => new Response('OK', { status: 200 }))
     globalThis.fetch = mock as unknown as typeof globalThis.fetch
     const notifications: Array<{ message: string; level: string }> = []
-    const handlers = build({})
+    const { handlers } = build({})
     await fireStartup(handlers, makeCtx(notifications))
     await new Promise((r) => setTimeout(r, 100))
     expect(mock).not.toHaveBeenCalled()
@@ -208,7 +213,7 @@ describe('session_start health-check (real host, mocked fetch)', () => {
   it('non-startup reasons (resume/reload) do not probe', async () => {
     const mock = vi.fn(async () => new Response('OK', { status: 200 }))
     globalThis.fetch = mock as unknown as typeof globalThis.fetch
-    const handlers = build({})
+    const { handlers } = build({})
     const ctx = makeCtx([])
     await handlers.session_start?.[0]?.({ reason: 'resume' }, ctx)
     await handlers.session_start?.[0]?.({ reason: 'reload' }, ctx)

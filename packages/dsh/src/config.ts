@@ -182,13 +182,13 @@ function providerBlockSchema(explicitOnlyDefault: boolean) {
 /**
  * The schemastery schema for {@link Config}. Every leaf is defaulted (the
  * dsh-web-automation "every field is defaulted" model): an empty plugin config
- * resolves to the core's keyless stack defaults (ddg+bing search, cached fetch,
+ * resolves to the core defaults (searxng+ddg+bing search, cached fetch,
  * platform + history tools enabled, browser off).
  */
 export const Config: z<Config> = z.object({
   search: z
     .object({
-      engines: z.array(z.string()).default(['ddg', 'bing']),
+      engines: z.array(z.string()).default(['searxng', 'ddg', 'bing']),
       mode: z.union(['fallback', 'fuse']).default('fallback'),
       region: z.string().default(''),
       freshness: z.string().default(''),
