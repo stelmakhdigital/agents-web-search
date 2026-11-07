@@ -41,7 +41,7 @@ describe('Pi extension entry (mocked ExtensionAPI)', () => {
     return { pi: pi as unknown as ExtensionAPI, toolNames, handlers }
   }
 
-  it('registers all seven core tools and a session_shutdown cleanup', async () => {
+  it('registers all core tools (browser module ships ON) and a session_shutdown cleanup', async () => {
     const { pi, toolNames, handlers } = mockPi()
     extension(pi)
     expect(toolNames).toEqual([
@@ -52,6 +52,14 @@ describe('Pi extension entry (mocked ExtensionAPI)', () => {
       'web_history',
       'web_search_stats',
       'web_cache_clear',
+      'browser_open',
+      'browser_navigate',
+      'browser_snapshot',
+      'browser_click',
+      'browser_type',
+      'browser_evaluate',
+      'browser_screenshot',
+      'browser_close',
     ])
     expect(pi.on).toHaveBeenCalledWith('session_shutdown', expect.any(Function))
     const shutdown = handlers.get('session_shutdown')

@@ -23,7 +23,7 @@
 import { appendFileSync, readFileSync, writeFileSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { CoreError, createWebStack, type HostAdapter, type ToolSpec, type WebStack } from '@agents-web-search/core'
+import { CoreError, browserReadiness, createWebStack, type HostAdapter, type ToolSpec, type WebStack } from '@agents-web-search/core'
 import { getAgentDir } from '@earendil-works/pi-coding-agent'
 import type {
   AgentToolResult,
@@ -184,7 +184,7 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
   const GUARD_STATUS_KEY = ' browser-guard'
 
   const host: HostAdapter = {
-    identity: { name: 'pi', version: '1.4.7' },
+    identity: { name: 'pi', version: '1.4.8' },
     config: coreConfig,
     paths: { stateDir, tempDir: join(stateDir, 'temp') },
 
@@ -361,6 +361,22 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
           }
         })
         .catch(() => {}) // never surface a probe failure beyond the warning path
+    }
+
+    // Browser-module readiness (startup only, never in subagent processes,
+    // only when the module is enabled): playwright missing or the Chromium
+    // binary not downloaded is a setup problem, not a runtime error — give
+    // the operator the exact fix before the first browser tool fails.
+    if (event.reason === 'startup' && !isSubagentProcess && (config.browser?.enabled ?? true)) {
+      void browserReadiness()
+        .then((readiness) => {
+          if (readiness.hint === undefined) return
+          try { pi.appendEntry('web-search-browser-setup', { hint: readiness.hint }) } catch { /* best-effort */ }
+          if (ctx.hasUI && typeof ctx.ui?.notify === 'function') {
+            ctx.ui.notify(`agents-web-search: браузер недоступен — ${readiness.hint}`, 'warning')
+          }
+        })
+        .catch(() => {})
     }
   })
 

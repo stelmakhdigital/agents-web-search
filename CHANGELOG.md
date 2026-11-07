@@ -4,6 +4,36 @@
 версии пакетов синхронизированы (`dsh`, `pi`; `contract` — внутренний,
 private).
 
+## [1.4.8] — 2026-11-07
+
+Браузерный модуль — из коробки: включён по умолчанию, с проверкой
+готовности и установочным скриптом. Исправлен CI адаптеров (типы в тарболле
+ядра + tsconfig-paths под GH-лейаут; падал с 2026-09-29). Vendor ядра —
+`agents-web-search-core-1.1.1.tgz` (d.ts в пакете, `browserReadiness()`).
+
+### Изменено
+
+- `packages/pi`: браузерный модуль включён по умолчанию
+  (`browser.enabled` — true, явная настройка всегда старше); 8 `browser_*`
+  инструментов регистрируются сразу, playwright деградирует с понятным
+  `BROWSER_UNAVAILABLE` при отсутствии.
+- CI: actions/checkout@v5 + setup-node@v5; tsconfig-paths всех пакетов
+  получили второй кандидат под GH-Actions sibling-лейаут
+  (`../../core-web-search/src`) — фикс падения `Build` с implicit-any
+  каскадом.
+- version: root и `@agents-web-search/pi` → `1.4.8` (+ identity pi).
+
+### Добавлено
+
+- `packages/pi`: на `session_start` (startup, без субагентов) проверяется
+  готовность браузера (`browserReadiness()` ядра): playwright отсутствует
+  или Chromium не скачан — одно предупреждение с точной командой лечения +
+  запись сессии `web-search-browser-setup`; без запуска браузера, скачиваний
+  и блокировки старта.
+- `scripts/browser/install.sh` — скачивание Chromium версией playwright
+  установленного адаптера (install/status); `status` читает
+  `browserReadiness()` ядра.
+
 ## [1.4.7] — 2026-11-07
 
 Правки из ревью: единый источник правды конфига, видимость health-check

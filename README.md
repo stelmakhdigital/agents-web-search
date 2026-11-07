@@ -81,6 +81,15 @@ The extension registers all core tools (including `web_search`/`web_fetch`);
 optional config — `~/.pi/agent/web-search.json`, state —
 `~/.pi/agent/web-search/`.
 
+**Браузер по умолчанию**: Playwright-модуль включён из коробки
+(`browser.enabled: false` — чтобы выключить). После установки скачайте
+браузер один раз: `agents-web-search/scripts/browser/install.sh` (использует
+playwright установленного адаптера) или `npx playwright install chromium`.
+На `session_start` адаптер проверяет готовность (`browserReadiness()` ядра)
+и при отсутствии браузера даёт одно предупреждение с точной командой
+лечения; подтверждения действий — по `approval` (fail-closed), см.
+`packages/pi/README.md`.
+
 #### SearXNG (локальный инстанс)
 
 Дефолтная цепочка движков — `searxng, ddg, bing`: сначала ядро пробует
