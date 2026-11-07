@@ -4,6 +4,22 @@
 версии пакетов синхронизированы (`dsh`, `pi`; `contract` — внутренний,
 private).
 
+## [1.4.9] — 2026-11-07
+
+Ядро 1.2.0: in-memory page cache (LRU 50, TTL = `fetch.cacheTtlMs`) перед
+SQLite-store — повторные `web_fetch`/`get_search_content` в сессии без
+обращения к store; `web_cache_clear` чистит и его. CI: проверка, что пины
+установки в README ядра совпадают с версией адаптера (шаг с `--check`).
+Vendor — `agents-web-search-core-1.2.0.tgz`.
+
+### Изменено
+
+- version: root и `@agents-web-search/pi` → `1.4.9` (+ identity pi); пины
+  в README ядра → `@v1.4.9`.
+- CI: новый шаг «Check core README pins match the adapter version» —
+  `scripts/update-core-readme-pins.sh --check` (без записей; падает при
+  устаревших пинах).
+
 ## [1.4.8] — 2026-11-07
 
 Браузерный модуль — из коробки: включён по умолчанию, с проверкой
