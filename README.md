@@ -81,6 +81,44 @@ The extension registers all core tools (including `web_search`/`web_fetch`);
 optional config — `~/.pi/agent/web-search.json`, state —
 `~/.pi/agent/web-search/`.
 
+#### SearXNG (локальный инстанс)
+
+Дефолтная цепочка движков — `searxng, ddg, bing`: сначала ядро пробует
+**локальный SearXNG** (метапоиск без облачных API и дата-брокеров), затем
+падает в безключевые публичные движки. Инстанс необязателен: если он не
+поднят, поиск просто идёт через `ddg`/`bing` (refused-соединение отказывается
+мгновенно; молчащий хост срезается ~3-секундным connect-гардом, после чего
+движок уходит в cooldown).
+
+Установка одной командой (нативно, без docker: Python venv + systemd
+**user** unit, bind `127.0.0.1:8080` — `SEARXNG_DEFAULT_ENDPOINT` ядра):
+
+```sh
+git clone https://github.com/stelmakhdigital/agents-web-search.git \
+  && agents-web-search/scripts/searxng/install.sh
+```
+
+Скрипт: создаёт venv в `~/.pi/agent/web-search/searxng/venv`, клонирует
+официальный репозиторий SearXNG (PyPI-пакет `searxng` — посторонний
+MCP-сервер, не используется), ставит движок + waitress, генерирует
+минимальный `settings.yml` (`search.formats: [html, json]`,
+`limiter: false`, `valkey.url: false`, персистентный secret key) и запускает
+`searxng.service` как systemd user unit. Идемпотентен; `update` подтягивает
+свежий исходник (rolling release), `status` — состояние юнита и пробы,
+`uninstall` удаляет всё. Нужны python ≥ 3.9 и git; без systemd user-сессии
+скрипт печатает команду ручного запуска.
+
+**Health-check на старте**: на `session_start` (reason `startup`, один раз
+на процесс pi, без субагентских процессов) адаптер проверяет
+`{endpoint}/healthz` с таймаутом 800 мс, fire-and-forget — старт сессии не
+блокируется. Мёртвый инстанс даёт одно предупреждение: `agents-web-search:
+SearXNG недоступен на <endpoint> — поиск пойдёт через ddg+bing …` с
+подсказкой запуска install-скрипта. Endpoint берётся из
+`providers.searxng.endpoint` или из дефолта ядра. Отключить проверку —
+убрать `searxng` из `search.engines` в `web-search.json` (не заданный
+`search.engines` наследует дефолтную цепочку ядра, где searxng есть).
+Подробности: `packages/pi/README.md`.
+
 ### Writing your own adapter (HostAdapter)
 
 Any agent integrates with the core through the single `HostAdapter`
