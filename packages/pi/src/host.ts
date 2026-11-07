@@ -41,6 +41,11 @@ import { truncateForPi } from './truncate.ts'
 /** Tools that may run concurrently (read-only; the core single-flights search). */
 const CONCURRENT_TOOLS = new Set(['web_platform_search', 'get_search_content', 'web_history', 'web_search_stats', 'web_cache_clear'])
 
+// Browser readiness is probed at most once per process: session_start
+// 'startup' fires once per real session, and a repeat would only re-notify
+// the same setup problem.
+let browserProbeFired = false
+
 /** Human-readable labels for `Available tools` / TUI display. */
 const TOOL_LABELS: Record<string, string> = {
   web_search: 'Web search',
@@ -364,10 +369,12 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
     }
 
     // Browser-module readiness (startup only, never in subagent processes,
-    // only when the module is enabled): playwright missing or the Chromium
-    // binary not downloaded is a setup problem, not a runtime error — give
-    // the operator the exact fix before the first browser tool fails.
-    if (event.reason === 'startup' && !isSubagentProcess && (config.browser?.enabled ?? true)) {
+    // only when the module is enabled, at most once per process): playwright
+    // missing or the Chromium binary not downloaded is a setup problem, not
+    // a runtime error — give the operator the exact fix before the first
+    // browser tool fails.
+    if (event.reason === 'startup' && !isSubagentProcess && (config.browser?.enabled ?? true) && !browserProbeFired) {
+      browserProbeFired = true
       void browserReadiness()
         .then((readiness) => {
           if (readiness.hint === undefined) return

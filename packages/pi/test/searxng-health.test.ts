@@ -156,7 +156,9 @@ describe('session_start health-check (real host, mocked fetch)', () => {
     await vi.waitFor(() => expect(mock).toHaveBeenCalledTimes(1), { timeout: 2_000 })
     expect(mock.mock.calls[0]?.[0]).toBe('http://localhost:8080/healthz')
     await new Promise((r) => setTimeout(r, 50)) // let the .then() settle: healthy → silence
-    expect(notifications).toEqual([])
+    // browser-readiness side effects (CI machines have no Chromium) are
+    // irrelevant here — only SearXNG notifications count
+    expect(notifications.filter((n) => n.message.includes('SearXNG недоступен'))).toEqual([])
   })
 
   it('dead instance: one warning, one session-log entry, endpoint and install hint', async () => {
@@ -175,9 +177,11 @@ describe('session_start health-check (real host, mocked fetch)', () => {
     // one probe only (not repeated per notification)
     expect(mock).toHaveBeenCalledTimes(1)
     // the model-facing path: a session-log entry records the dead instance
-    expect(appended).toHaveLength(1)
-    expect(appended[0]?.type).toBe('web-search-searxng-down')
-    expect(appended[0]?.data).toEqual({ endpoint: 'http://localhost:8080' })
+    // (browser-readiness entries, if any on a machine without Chromium,
+    // are filtered out)
+    const searxngEntries = appended.filter((e) => e.type === 'web-search-searxng-down')
+    expect(searxngEntries).toHaveLength(1)
+    expect(searxngEntries[0]?.data).toEqual({ endpoint: 'http://localhost:8080' })
   })
 
   it('searxng not in engines: no probe at all', async () => {
