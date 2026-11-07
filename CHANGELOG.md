@@ -4,6 +4,38 @@
 версии пакетов синхронизированы (`dsh`, `pi`; `contract` — внутренний,
 private).
 
+## [1.4.6] — 2026-11-07
+
+Автозапуск локального SearXNG: установочный скрипт (native venv + systemd
+user unit, без docker) и health-check на старте сессии. Vendor ядра
+пересобран (core: SearXNG первым в дефолтной цепочке `searxng, ddg, bing`,
+быстрый отказ, чистка boilerplate HTTP-движков, экспорт
+`SEARXNG_DEFAULT_ENDPOINT`).
+
+### Добавлено
+
+- `scripts/searxng/install.sh` (идемпотентный; `install`/`update`/
+  `uninstall`/`status`): venv в `~/.pi/agent/web-search/searxng/venv`,
+  движок из официального git-репозитория (PyPI-пакет `searxng` —
+  посторонний MCP-сервер, не используется), минимальный `settings.yml`
+  (JSON API, limiter off, bind 127.0.0.1:8080), systemd user unit
+  `searxng.service` (waitress WSGI). Fallback-каскад создания venv:
+  ensurepip → virtualenv → get-pip.py.
+- `packages/pi`: health-check на `session_start` (reason `startup`, один
+  раз на процесс, без субагентских процессов): GET `{endpoint}/healthz`,
+  таймаут 800 мс, fire-and-forget — старт сессии не блокируется. Мёртвый
+  инстанс — одно предупреждение с endpoint и подсказкой install-скрипта.
+  Не выполняется при `searxng` вне `search.engines`; endpoint — из
+  `providers.searxng.endpoint` или `SEARXNG_DEFAULT_ENDPOINT` ядра.
+- version: root и `@agents-web-search/pi` → `1.4.6` (+ identity pi).
+  Доки: корневой README и `packages/pi/README.md` — раздел SearXNG.
+
+### Изменено
+
+- `.vendor/agents-web-search-core-1.0.0.tgz` пересобран из
+  core-web-search@master (см. выше).
+- `packages/dsh/test/host.test.ts`: дефолтная цепочка `['searxng','ddg','bing']`.
+
 ## [1.4.5] — 2026-09-30
 
 `/browser-guard:ssrf` — сессионный тумблер SSRF-гарда браузера (разрешить/
