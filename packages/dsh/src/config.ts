@@ -11,6 +11,12 @@
 import z from '@deepseek-ai/schemastery'
 import type { CoreConfig, ProviderConfig } from '@agents-web-search/core'
 
+/** Schemastery resolves every string leaf to '' when unset; '' must not
+ * reach the core (an empty endpoint/baseUrl would fail core checks). */
+function str(value: string | undefined): string | undefined {
+  return value !== undefined && value !== '' ? value : undefined
+}
+
 /** Key-carrying engine block (API engines). */
 export interface EngineKeyConfig {
   /** Literal API key; wins over credential and env. */
@@ -322,7 +328,6 @@ export const Config: z<Config> = z.object({
  */
 function providerBlock(block: EngineBlockConfig | EngineKeyConfig | undefined, engine?: string): ProviderConfig | undefined {
   if (block === undefined) return undefined
-  const str = (value: string | undefined) => (value !== undefined && value !== '' ? value : undefined)
   const model = 'model' in block ? str(block.model) : undefined
   const rawMaxUses = 'maxUses' in block ? block.maxUses : undefined
   const maxUses = rawMaxUses !== undefined && rawMaxUses > 0 ? rawMaxUses : undefined
@@ -354,8 +359,6 @@ export function toCoreConfig(config: Config): CoreConfig {
 
   // Schemastery resolves every string leaf to '' when unset; '' must not
   // reach the core (empty endpoint/storePath/baseUrl would fail core checks).
-  const str = (value: string | undefined) => (value !== undefined && value !== '' ? value : undefined)
-
   const embedEndpoint = str(search.embedEndpoint)
   const core: CoreConfig = {
     search: {
@@ -443,16 +446,16 @@ export function toCoreConfig(config: Config): CoreConfig {
       ...(str(search.storePath) !== undefined ? { path: str(search.storePath) as string } : {}),
     },
     providers: {
-      ...(providerBlock(providers.openai, 'openai') !== undefined ? { openai: providerBlock(providers.openai, 'openai') } : {}),
-      ...(providerBlock(providers.xai, 'xai') !== undefined ? { xai: providerBlock(providers.xai, 'xai') } : {}),
-      ...(providerBlock(providers.anthropic, 'anthropic') !== undefined ? { anthropic: providerBlock(providers.anthropic, 'anthropic') } : {}),
-      ...(providerBlock(providers.deepseek, 'deepseek') !== undefined ? { deepseek: providerBlock(providers.deepseek, 'deepseek') } : {}),
-      ...(providerBlock(providers.gemini, 'gemini') !== undefined ? { gemini: providerBlock(providers.gemini, 'gemini') } : {}),
-      ...(providerBlock(providers.perplexity, 'perplexity') !== undefined ? { perplexity: providerBlock(providers.perplexity, 'perplexity') } : {}),
-      ...(providerBlock(providers.exa, 'exa') !== undefined ? { exa: providerBlock(providers.exa, 'exa') } : {}),
-      ...(providerBlock(providers.tavily, 'tavily') !== undefined ? { tavily: providerBlock(providers.tavily, 'tavily') } : {}),
-      ...(providerBlock(providers.brave, 'brave') !== undefined ? { brave: providerBlock(providers.brave, 'brave') } : {}),
-      ...(providerBlock(providers.jina, 'jina') !== undefined ? { jina: providerBlock(providers.jina, 'jina') } : {}),
+      ...Object.fromEntries(
+        (['openai', 'xai', 'anthropic', 'deepseek', 'gemini', 'perplexity', 'exa', 'tavily', 'brave', 'jina'] as const)
+          .map((engine) => {
+          // One providerBlock() call per engine (the former conditional
+          // spread invoked it twice).
+          const block = providerBlock(providers[engine], engine)
+          return [engine, block] as const
+        })
+          .filter(([, block]) => block !== undefined),
+      ),
       ...(str(providers.searxng?.endpoint) !== undefined ? { searxng: { endpoint: str(providers.searxng?.endpoint) as string } } : {}),
       ...(str(providers.ollama?.endpoint) !== undefined ? { ollama: { endpoint: str(providers.ollama?.endpoint) as string } } : {}),
     },

@@ -22,6 +22,7 @@ import {
   type ApprovalRequest,
   type HostAdapter,
   type ToolSpec,
+  CONCURRENT_TOOLS,
   type WebStack,
 } from '@agents-web-search/core'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
@@ -55,7 +56,6 @@ export const FETCH_PROVIDER_ID = 'cached-http'
 const HOST_OWNED_TOOLS = new Set(['web_search', 'web_fetch'])
 
 /** Tools that are safe to run in parallel sibling groups (no shared mutable state). */
-const CONCURRENT_TOOLS = new Set(['web_platform_search', 'get_search_content', 'web_history', 'web_search_stats', 'web_cache_clear'])
 
 /** Settings namespace for the plugin's config section. */
 export const SETTINGS_NAMESPACE = 'agents-web-search'

@@ -16,6 +16,7 @@ import type {
   ParameterSchemaSpec,
   ValueSchemaSpec,
 } from '@deepseek-ai/dsh-tools'
+import type { JsonSchemaNode } from '@agents-web-search/core'
 
 /** A property-map schema node as accepted by DSH `defineTool` (host type). */
 export type DshValueSchema = ValueSchemaSpec
@@ -25,20 +26,6 @@ export type DshPropertySchema = ParameterPropertySpec
 
 /** The root parameter map handed to `defineTool`. */
 export type DshParameterSchema = ParameterSchemaSpec
-
-/** Minimal JSON-Schema node shape (structural; the core owns the real types). */
-interface JsonSchemaNode {
-  readonly type?: string
-  readonly description?: string
-  readonly enum?: readonly (string | number | boolean)[]
-  readonly items?: JsonSchemaNode
-  readonly properties?: Readonly<Record<string, JsonSchemaNode>>
-  readonly additionalProperties?: boolean
-  readonly oneOf?: readonly JsonSchemaNode[]
-  readonly required?: readonly string[]
-  /** Other JSON-Schema keywords (dropped by the projection). */
-  readonly [keyword: string]: unknown
-}
 
 /**
  * Convert a JSON-Schema value node to a DSH value schema. Unsupported

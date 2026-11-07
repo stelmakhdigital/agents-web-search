@@ -137,7 +137,7 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
     expect(result.stack.config.browser?.enabled).toBe(true)
     expect(result.stack.config.search.mode).toBe('fallback')
     // host identity + state dir under the agent dir
-    expect(result.host.identity).toEqual({ name: 'pi', version: '1.4.9' })
+    expect(result.host.identity).toEqual({ name: 'pi', version: '1.4.10' })
     expect(result.host.paths.stateDir).toBe(join(agentDir, 'web-search'))
   })
 

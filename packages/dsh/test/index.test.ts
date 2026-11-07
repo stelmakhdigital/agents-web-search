@@ -40,6 +40,7 @@ vi.mock('@agents-web-search/core', () => {
   }
   return {
     CoreError,
+    CONCURRENT_TOOLS: new Set(['web_platform_search', 'get_search_content', 'web_history', 'web_search_stats', 'web_cache_clear']),
     isCoreError: (value: unknown) => value instanceof CoreError,
     createWebStack: (_host: unknown) => {
       return {

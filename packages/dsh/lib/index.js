@@ -3,6 +3,9 @@ import { WebError as WebError2 } from "@deepseek-ai/dsh-web";
 
 // src/config.ts
 import z from "@deepseek-ai/schemastery";
+function str(value) {
+  return value !== void 0 && value !== "" ? value : void 0;
+}
 function providerBlockSchema(explicitOnlyDefault) {
   return z.object({
     apiKey: z.string().default(""),
@@ -120,7 +123,6 @@ var Config = z.object({
 });
 function providerBlock(block, engine) {
   if (block === void 0) return void 0;
-  const str = (value) => value !== void 0 && value !== "" ? value : void 0;
   const model = "model" in block ? str(block.model) : void 0;
   const rawMaxUses = "maxUses" in block ? block.maxUses : void 0;
   const maxUses = rawMaxUses !== void 0 && rawMaxUses > 0 ? rawMaxUses : void 0;
@@ -142,7 +144,6 @@ function toCoreConfig(config) {
   const extended = config.extended ?? {};
   const browser = config.browser ?? {};
   const providers = config.providers ?? {};
-  const str = (value) => value !== void 0 && value !== "" ? value : void 0;
   const embedEndpoint = str(search.embedEndpoint);
   const core = {
     search: {
@@ -218,16 +219,12 @@ function toCoreConfig(config) {
       ...str(search.storePath) !== void 0 ? { path: str(search.storePath) } : {}
     },
     providers: {
-      ...providerBlock(providers.openai, "openai") !== void 0 ? { openai: providerBlock(providers.openai, "openai") } : {},
-      ...providerBlock(providers.xai, "xai") !== void 0 ? { xai: providerBlock(providers.xai, "xai") } : {},
-      ...providerBlock(providers.anthropic, "anthropic") !== void 0 ? { anthropic: providerBlock(providers.anthropic, "anthropic") } : {},
-      ...providerBlock(providers.deepseek, "deepseek") !== void 0 ? { deepseek: providerBlock(providers.deepseek, "deepseek") } : {},
-      ...providerBlock(providers.gemini, "gemini") !== void 0 ? { gemini: providerBlock(providers.gemini, "gemini") } : {},
-      ...providerBlock(providers.perplexity, "perplexity") !== void 0 ? { perplexity: providerBlock(providers.perplexity, "perplexity") } : {},
-      ...providerBlock(providers.exa, "exa") !== void 0 ? { exa: providerBlock(providers.exa, "exa") } : {},
-      ...providerBlock(providers.tavily, "tavily") !== void 0 ? { tavily: providerBlock(providers.tavily, "tavily") } : {},
-      ...providerBlock(providers.brave, "brave") !== void 0 ? { brave: providerBlock(providers.brave, "brave") } : {},
-      ...providerBlock(providers.jina, "jina") !== void 0 ? { jina: providerBlock(providers.jina, "jina") } : {},
+      ...Object.fromEntries(
+        ["openai", "xai", "anthropic", "deepseek", "gemini", "perplexity", "exa", "tavily", "brave", "jina"].map((engine) => {
+          const block = providerBlock(providers[engine], engine);
+          return [engine, block];
+        }).filter(([, block]) => block !== void 0)
+      ),
       ...str(providers.searxng?.endpoint) !== void 0 ? { searxng: { endpoint: str(providers.searxng?.endpoint) } } : {},
       ...str(providers.ollama?.endpoint) !== void 0 ? { ollama: { endpoint: str(providers.ollama?.endpoint) } } : {}
     }
@@ -238,7 +235,8 @@ function toCoreConfig(config) {
 // src/host.ts
 import {
   CoreError,
-  createWebStack
+  createWebStack,
+  CONCURRENT_TOOLS
 } from "@agents-web-search/core";
 import { credentialRef } from "@deepseek-ai/dsh-credentials";
 import { dshHomePath } from "@deepseek-ai/dsh-home-paths";
@@ -356,7 +354,6 @@ var PLUGIN_NAME = "agents-web-search";
 var SEARCH_PROVIDER_ID = "multi";
 var FETCH_PROVIDER_ID = "cached-http";
 var HOST_OWNED_TOOLS = /* @__PURE__ */ new Set(["web_search", "web_fetch"]);
-var CONCURRENT_TOOLS = /* @__PURE__ */ new Set(["web_platform_search", "get_search_content", "web_history", "web_search_stats", "web_cache_clear"]);
 var SETTINGS_NAMESPACE = "agents-web-search";
 var CREDENTIAL_ENV_DEFAULTS = {
   openai: "OPENAI_API_KEY",

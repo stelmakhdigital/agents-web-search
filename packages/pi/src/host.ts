@@ -20,10 +20,11 @@
  * @module @agents-web-search/pi/host
  */
 
-import { appendFileSync, readFileSync, writeFileSync, renameSync } from 'node:fs'
+import { appendFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { CoreError, browserReadiness, createWebStack, type HostAdapter, type ToolSpec, type WebStack } from '@agents-web-search/core'
+import { CONCURRENT_TOOLS, CoreError, browserReadiness, createWebStack, type HostAdapter, type ToolSpec, type WebStack } from '@agents-web-search/core'
+import { hasSessionHistory, readBrowserGuard, readGuardFile, writeGuardFile } from './guard-state.ts'
 import { getAgentDir } from '@earendil-works/pi-coding-agent'
 import type {
   AgentToolResult,
@@ -39,7 +40,6 @@ import { toTypeBoxParameters } from './schema.ts'
 import { truncateForPi } from './truncate.ts'
 
 /** Tools that may run concurrently (read-only; the core single-flights search). */
-const CONCURRENT_TOOLS = new Set(['web_platform_search', 'get_search_content', 'web_history', 'web_search_stats', 'web_cache_clear'])
 
 // Browser readiness is probed at most once per process: session_start
 // 'startup' fires once per real session, and a repeat would only re-notify
@@ -152,44 +152,25 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
   const isSubagentProcess = Number(process.env.PI_SUBAGENT_DEPTH ?? '0') >= 1
   const browserGuard = isSubagentProcess
     ? { ...FRESH_GUARD }
-    : (() => {
-        try {
-          const all = JSON.parse(readFileSync(guardStateFile, 'utf8')) as Record<string, Record<string, unknown>>
-          const st = all['browser-guard'] ?? {}
-          return {
-            disabled: Boolean(st.disabled),
-            skipClickType: Boolean(st.skipClickType),
-            ssrf: typeof st.ssrf === 'boolean' ? st.ssrf : cfgAllowPrivate,
-          }
-        } catch {
-          return { ...FRESH_GUARD }
-        }
-      })()
+    : readBrowserGuard(guardStateFile, cfgAllowPrivate)
   const saveBrowserGuard = (): void => {
     if (isSubagentProcess) return
-    let all: Record<string, Record<string, unknown>> = {}
-    try {
-      all = JSON.parse(readFileSync(guardStateFile, 'utf8')) as Record<string, Record<string, unknown>>
-    } catch {
-      /* absent/corrupt ⇒ fresh */
-    }
+    // Read-modify-write: the file is shared with the pi-extensions guards
+    // (bash-guard, dir-guard); the fresh read keeps their entries intact.
+    const all = readGuardFile(guardStateFile)
     all['browser-guard'] = {
       disabled: browserGuard.disabled,
       skipClickType: browserGuard.skipClickType,
       ssrf: browserGuard.ssrf,
     }
-    // Atomic write (temp + rename): the file is shared with pi-extensions
-    // guards; a torn write from a concurrent process must not corrupt it.
-    const tmp = `${guardStateFile}.tmp`
-    writeFileSync(tmp, JSON.stringify(all, null, 2))
-    renameSync(tmp, guardStateFile)
+    writeGuardFile(guardStateFile, all)
   }
   // Leading space: pi's footer sorts status entries alphabetically and
   // truncates from the right, so a leading-space key surfaces first.
   const GUARD_STATUS_KEY = ' browser-guard'
 
   const host: HostAdapter = {
-    identity: { name: 'pi', version: '1.4.9' },
+    identity: { name: 'pi', version: '1.4.10' },
     config: coreConfig,
     paths: { stateDir, tempDir: join(stateDir, 'temp') },
 
@@ -315,17 +296,7 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
       event.reason !== 'resume' &&
       event.reason !== 'reload' &&
       event.reason !== 'fork' &&
-      !((event.reason === 'startup' || event.reason === undefined) &&
-        (() => {
-          try {
-            const msgs = (ctx.sessionManager as {
-        buildSessionContext?: () => { messages?: unknown[] }
-      } | undefined)?.buildSessionContext?.().messages
-            return Array.isArray(msgs) && msgs.length > 0
-          } catch {
-            return false
-          }
-        })())
+      !((event.reason === 'startup' || event.reason === undefined) && hasSessionHistory(ctx))
     if (shouldReset) {
       browserGuard.disabled = false
       browserGuard.skipClickType = false

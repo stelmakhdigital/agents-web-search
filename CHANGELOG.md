@@ -4,6 +4,27 @@
 версии пакетов синхронизированы (`dsh`, `pi`; `contract` — внутренний,
 private).
 
+## [1.4.10] — 2026-11-07
+
+Рефакторинг по итогам скаут-ревью обоих пакетов; ядро 1.3.0 (вендор
+`agents-web-search-core-1.3.0.tgz`) с фиксами markdown/browser/history и
+параллельным multi-query `web_search`.
+
+### Изменено
+
+- `packages/pi`: guard-state вынесен в `src/guard-state.ts` (атомарная
+  запись, чтение, `hasSessionHistory` вместо IIFE в `session_start`);
+  `host.ts` 553 → 524 строк, fs-импорты сокращены до debug-лога.
+- `packages/dsh`: маппинг провайдеров без двойного вызова `providerBlock`
+  (было 24 вызова вместо 12), общий хелпер `str()` поднят в модульный
+  скоуп.
+- `packages/pi` + `packages/dsh`: локальные копии `CONCURRENT_TOOLS` и
+  `JsonSchemaNode` удалены — общий источник в ядре (`CONCURRENT_TOOLS`,
+  `JsonSchemaNode`, type-only импорт схемы) — политика параллелизма и
+  форма схемы больше не могут разъехаться между хостами.
+- version: root и `@agents-web-search/pi` → `1.4.10` (+ identity pi); пины
+  ядра → `@v1.4.10`.
+
 ## [1.4.9] — 2026-11-07
 
 Ядро 1.2.0: in-memory page cache (LRU 50, TTL = `fetch.cacheTtlMs`) перед
