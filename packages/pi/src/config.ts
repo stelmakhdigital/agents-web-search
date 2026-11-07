@@ -101,11 +101,13 @@ function normalizeLegacyFields(raw: Record<string, unknown>): void {
 
 /**
  * Map the Pi config to the core's `CoreConfig` (pure): strip the Pi-only
- * `history` block and drop "sentinel" provider values (empty strings, zero
- * `maxUses`, empty blocks) so the core's env-fallback layer keeps working.
+ * `history` block, drop "sentinel" provider values (empty strings, zero
+ * `maxUses`, empty blocks) so the core's env-fallback layer keeps working,
+ * and default the browser module ON (an explicit `browser.enabled` always
+ * wins; playwright degrades to a clear `BROWSER_UNAVAILABLE` when missing).
  */
 export function toCoreConfig(config: PiConfig): CoreConfig {
-  const { history: _piOnly, providers, ...rest } = config
+  const { history: _piOnly, providers, browser, ...rest } = config
   let filteredProviders: CoreConfig['providers'] | undefined
   if (providers !== undefined) {
     const filtered: Record<string, unknown> = {}
@@ -118,5 +120,11 @@ export function toCoreConfig(config: PiConfig): CoreConfig {
     }
     if (Object.keys(filtered).length > 0) filteredProviders = filtered as CoreConfig['providers']
   }
-  return { ...rest, ...(filteredProviders !== undefined ? { providers: filteredProviders } : {}) }
+  const { enabled: browserEnabled, ...browserRest } = browser ?? {}
+  const coreBrowser = { enabled: browserEnabled ?? true, ...browserRest }
+  return {
+    ...rest,
+    ...(filteredProviders !== undefined ? { providers: filteredProviders } : {}),
+    browser: coreBrowser,
+  }
 }

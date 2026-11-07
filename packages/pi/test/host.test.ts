@@ -114,7 +114,7 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
     return { result, tools: mock.tools, handlers: mock.handlers, registered: mock.registered }
   }
 
-  it('registers the seven core tools (browser off by default)', () => {
+  it('registers the core tools (browser module ON by default)', () => {
     const { result, tools } = build()
     const names = tools.map(t => t.name)
     expect(names).toEqual([
@@ -125,10 +125,19 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
       'web_history',
       'web_search_stats',
       'web_cache_clear',
+      'browser_open',
+      'browser_navigate',
+      'browser_snapshot',
+      'browser_click',
+      'browser_type',
+      'browser_evaluate',
+      'browser_screenshot',
+      'browser_close',
     ])
+    expect(result.stack.config.browser?.enabled).toBe(true)
     expect(result.stack.config.search.mode).toBe('fallback')
     // host identity + state dir under the agent dir
-    expect(result.host.identity).toEqual({ name: 'pi', version: '1.4.7' })
+    expect(result.host.identity).toEqual({ name: 'pi', version: '1.4.8' })
     expect(result.host.paths.stateDir).toBe(join(agentDir, 'web-search'))
   })
 
@@ -149,7 +158,7 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
   })
 
   it('respects history/platforms tool switches', () => {
-    const { tools } = build({ history: { history: false, stats: false }, platforms: { enabled: false } })
+    const { tools } = build({ history: { history: false, stats: false }, platforms: { enabled: false }, browser: { enabled: false } })
     const names = tools.map(t => t.name)
     expect(names).toEqual(['web_search', 'web_fetch', 'get_search_content', 'web_cache_clear'])
   })
@@ -444,7 +453,7 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
     })
 
     it('browser-guard:ssrf — browser module off: warning, no state written', async () => {
-      const { registered } = build() // browser disabled by default
+      const { registered } = build({ browser: { enabled: false } })
       const cmd = registered.commands.find(c => c.name === 'browser-guard:ssrf')!
       let msg = ''
       await cmd.def.handler('', makeGuardCtx({ ui: { notify: (m: string) => { msg = String(m) } } }))

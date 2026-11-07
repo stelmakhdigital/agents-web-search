@@ -16,7 +16,7 @@ function providerBlockSchema(explicitOnlyDefault) {
 }
 var Config = z.object({
   search: z.object({
-    engines: z.array(z.string()).default(["ddg", "bing"]),
+    engines: z.array(z.string()).default(["searxng", "ddg", "bing"]),
     mode: z.union(["fallback", "fuse"]).default("fallback"),
     region: z.string().default(""),
     freshness: z.string().default(""),
@@ -390,7 +390,7 @@ function buildDshWebStack(ctx, config) {
   let currentExec;
   let stackRef;
   const host = {
-    identity: { name: "dsh", version: "1.0.0" },
+    identity: { name: "dsh", version: "1.0.2" },
     // keep in sync with package.json (UA/logs/stats)
     config: coreConfig,
     paths: {

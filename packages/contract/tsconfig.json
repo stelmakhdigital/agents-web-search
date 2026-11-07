@@ -3,8 +3,13 @@
     "target": "es2024",
     "module": "esnext",
     "moduleResolution": "bundler",
-    "lib": ["es2024", "dom"],
-    "types": ["node"],
+    "lib": [
+      "es2024",
+      "dom"
+    ],
+    "types": [
+      "node"
+    ],
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
@@ -14,8 +19,14 @@
     "noUncheckedIndexedAccess": true,
     "baseUrl": ".",
     "paths": {
-      "@agents-web-search/core": ["../../../core-web-search/src/index.ts"]
+      "@agents-web-search/core": [
+        "../../../core-web-search/src/index.ts",
+        "../../core-web-search/src/index.ts"
+      ]
     }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"]
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts"
+  ]
 }

@@ -44,7 +44,7 @@ core tools (the DSH adapter leaves `web_search`/`web_fetch` to the host):
 | `web_history` | Recent searches/fetches from the local store | parallel |
 | `web_search_stats` | Cache/statistics counters | parallel |
 | `web_cache_clear` | Clear search/page caches | parallel |
-| `browser_*` (8 tools) | Playwright browser automation — only when `browser.enabled` | sequential |
+| `browser_*` (8 tools) | Playwright browser automation — ships ON (`browser.enabled: false` to opt out) | sequential |
 
 Every tool result is truncated to the Pi host caps — **50,000 chars /
 2,000 lines** (head-biased, with a truncate marker). Tool errors surface to
@@ -70,7 +70,7 @@ All config is local. Secrets stay out of the file (env or explicit keys):
   "platforms": { "enabled": true },   // false hides web_platform_search
   "history": { "history": true, "cacheClear": true, "stats": true },
   "browser": {
-    "enabled": false,                 // ADR-005: opt-in
+    "enabled": true,                  // browser module ships ON (set false to opt out)
     "headless": true,
     "approval": "navigate",           // "never" | "navigate" (default) | "all"
     "allowPrivateNetworks": false     // SSRF guard: private/reserved hosts are blocked by default
@@ -100,7 +100,14 @@ All config is local. Secrets stay out of the file (env or explicit keys):
 - **Diagnostics**: `web_search_stats` lists every engine with its routing
   state (unavailable / cooldown ms / consecutive failures) — the built-in
   doctor for "why is the search degraded".
-- `browser` needs `npx playwright install chromium` once (headless shell).
+- **Browser module ships ON** (`browser.enabled` defaults to true; set
+  `false` to opt out). The playwright npm package installs with the plugin;
+  the Chromium binary is downloaded once — `scripts/browser/install.sh`
+  (uses the playwright of the installed adapter) or `npx playwright install
+  chromium`. On `session_start` (once per process, never in subagents) the
+  adapter probes readiness (`browserReadiness()` from the core): a missing
+  browser yields one warning with the exact fix + a session-log entry
+  (`web-search-browser-setup`) — no launch, no download, no blocking.
 - **SSRF guard**: by default the browser (and `web_fetch` / `web_platform_search`) **blocks private/reserved addresses** — LAN (`192.168.x.x`, `10.x`, …) and loopback (`127.0.0.1`) ⇒ `Error (BROWSER_SSRF_BLOCKED)`. To reach local services (dev dashboards, local APIs) set `"allowPrivateNetworks": true` in the corresponding section (`browser` / `fetch` / `platforms`). This is a network boundary, not a permission gate — the `/browser-guard` toggle does not affect it. For the **browser** only, `/browser-guard:ssrf` flips the guard for the current session without touching the file (footer badge `🔓 SSRF OFF`); the state is persistent like the other guard toggles (`guard-state.json`, survives `/reload` and `pi -c`), and a new session falls back to the config value.
 
 ## SearXNG (local instance)

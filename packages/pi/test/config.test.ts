@@ -76,13 +76,18 @@ describe('loadPiConfig', () => {
 })
 
 describe('toCoreConfig (Pi → core mapping)', () => {
-  it('maps an empty config to an empty core config (core defaults apply)', () => {
-    expect(toCoreConfig({})).toEqual({})
+  it('maps an empty config to the pi defaults (browser module ON, rest empty)', () => {
+    expect(toCoreConfig({})).toEqual({ browser: { enabled: true } })
   })
 
   it('strips the Pi-only history block', () => {
     const core = toCoreConfig({ history: { history: false, cacheClear: true, stats: false } })
-    expect(core).toEqual({})
+    expect(core).toEqual({ browser: { enabled: true } })
+  })
+
+  it('an explicit browser.enabled always wins over the default', () => {
+    expect(toCoreConfig({ browser: { enabled: false } })).toEqual({ browser: { enabled: false } })
+    expect(toCoreConfig({ browser: { headless: false } })).toEqual({ browser: { enabled: true, headless: false } })
   })
 
   it('passes core-shaped blocks through (single source of truth)', () => {
