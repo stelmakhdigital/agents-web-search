@@ -52,8 +52,11 @@ jobs:
         with:
           version: 11.7.0
 
-      - name: "Install (no frozen lockfile — the file: tarball integrity pin is rebuilt)"
+      - name: Install (no frozen lockfile — the file: tarball integrity pin is rebuilt)
         run: pnpm install --no-frozen-lockfile
+
+      - name: Check core README pins match the adapter version
+        run: scripts/update-core-readme-pins.sh --check core-web-search
 
       - name: Build
         run: pnpm -r run build
