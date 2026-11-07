@@ -80,17 +80,19 @@ describe('session_start browser readiness (real host, real probe)', () => {
     const notifications: Array<{ message: string; level: string }> = []
     const { handlers, appended } = build({})
     await handlers.session_start?.[0]?.({ reason: 'startup' }, makeCtx(notifications))
+    // only browser-readiness side effects count (the SearXNG health probe
+    // may also fire on this startup — machines without a local instance)
+    const setupEntries = () => appended.filter((e) => e.type === 'web-search-browser-setup')
+    const browserNotes = () => notifications.filter((n) => n.message.includes('браузер недоступен'))
     if (expected.hint === undefined) {
       await new Promise((r) => setTimeout(r, 100))
-      expect(appended).toEqual([])
-      expect(notifications).toEqual([])
+      expect(setupEntries()).toEqual([])
+      expect(browserNotes()).toEqual([])
     } else {
-      await vi.waitFor(() => expect(appended).toHaveLength(1), { timeout: 3_000 })
-      expect(appended[0]?.type).toBe('web-search-browser-setup')
-      expect(appended[0]?.data).toEqual({ hint: expected.hint })
-      expect(notifications).toHaveLength(1)
-      expect(notifications[0]?.message).toContain('браузер недоступен')
-      expect(notifications[0]?.level).toBe('warning')
+      await vi.waitFor(() => expect(setupEntries()).toHaveLength(1), { timeout: 3_000 })
+      expect(setupEntries()[0]?.data).toEqual({ hint: expected.hint })
+      await vi.waitFor(() => expect(browserNotes()).toHaveLength(1), { timeout: 3_000 })
+      expect(browserNotes()[0]?.level).toBe('warning')
     }
   })
 
@@ -99,8 +101,8 @@ describe('session_start browser readiness (real host, real probe)', () => {
     const { handlers, appended } = build({ browser: { enabled: false } })
     await handlers.session_start?.[0]?.({ reason: 'startup' }, makeCtx(notifications))
     await new Promise((r) => setTimeout(r, 100))
-    expect(appended).toEqual([])
-    expect(notifications).toEqual([])
+    expect(appended.filter((e) => e.type === 'web-search-browser-setup')).toEqual([])
+    expect(notifications.filter((n) => n.message.includes('браузер недоступен'))).toEqual([])
   })
 
   it('non-startup reasons (resume/reload) do not probe', async () => {
@@ -110,8 +112,8 @@ describe('session_start browser readiness (real host, real probe)', () => {
     await handlers.session_start?.[0]?.({ reason: 'resume' }, ctx)
     await handlers.session_start?.[0]?.({ reason: 'reload' }, ctx)
     await new Promise((r) => setTimeout(r, 100))
-    expect(appended).toEqual([])
-    expect(notifications).toEqual([])
+    expect(appended.filter((e) => e.type === 'web-search-browser-setup')).toEqual([])
+    expect(notifications.filter((n) => n.message.includes('браузер недоступен'))).toEqual([])
   })
 
   it('subagent process: no probe side effects', async () => {
@@ -120,7 +122,7 @@ describe('session_start browser readiness (real host, real probe)', () => {
     const { handlers, appended } = build({})
     await handlers.session_start?.[0]?.({ reason: 'startup' }, makeCtx(notifications))
     await new Promise((r) => setTimeout(r, 100))
-    expect(appended).toEqual([])
-    expect(notifications).toEqual([])
+    expect(appended.filter((e) => e.type === 'web-search-browser-setup')).toEqual([])
+    expect(notifications.filter((n) => n.message.includes('браузер недоступен'))).toEqual([])
   })
 })
