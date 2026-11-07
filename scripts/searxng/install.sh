@@ -12,6 +12,8 @@
 #   install.sh [install|update]   default: install
 #   install.sh uninstall          stop, disable, remove unit + files
 #   install.sh status             unit state + health probe
+#   install.sh doctor             full environment/instance check (PASS/FAIL/WARN)
+#   install.sh linger             enable login-linger (start the unit at boot)
 #
 # The PyPI package named `searxng` is an unrelated MCP server — do not
 # use it; the engine itself is only distributed via git (rolling release).
@@ -28,6 +30,10 @@ SETTINGS="$SEARXNG_HOME/settings.yml"
 UNIT_NAME="searxng.service"
 UNIT_FILE="$HOME/.config/systemd/user/$UNIT_NAME"
 REPO_URL="https://github.com/searxng/searxng"
+# Rolling release: pin the source revision so an install is reproducible and
+# a future upstream commit cannot break the JSON API or the build. `update`
+# re-clones at the latest master and refreshes this pin.
+PINNED_REF="ac11e14c5edf995d4d2f066bfb885a614f52a978"
 BIND_HOST="127.0.0.1"
 BIND_PORT="8080"
 
@@ -74,8 +80,11 @@ ensure_source() {
     return
   fi
   need git
-  log "cloning $REPO_URL (shallow)"
-  git clone --depth 1 "$REPO_URL" "$SRC"
+  log "fetching $REPO_URL at the pinned revision ${PINNED_REF:0:12}"
+  git init --quiet "$SRC"
+  git -C "$SRC" remote add origin "$REPO_URL"
+  git -C "$SRC" fetch --quiet --depth 1 origin "$PINNED_REF"
+  git -C "$SRC" checkout --quiet --detach FETCH_HEAD
 }
 
 ensure_packages() {
@@ -176,9 +185,21 @@ do_install() {
 
 do_update() {
   [ -d "$SRC/.git" ] || fail "not installed yet — run without arguments first"
-  log "pulling the latest source"
-  git -C "$SRC" pull --ff-only
-  ensure_packages
+  need git
+  log "resolving the latest master"
+  local new_ref
+  new_ref="$(git ls-remote origin refs/heads/master | cut -f1)"
+  [ -n "$new_ref" ] || fail "could not resolve master via git ls-remote"
+  local current_ref
+  current_ref="$(git -C "$SRC" rev-parse HEAD)"
+  if [ "$new_ref" = "$current_ref" ]; then
+    log "already at the latest revision (${current_ref:0:12})"
+  else
+    log "moving to the latest revision (${new_ref:0:12})"
+    git -C "$SRC" fetch --quiet --depth 1 origin "$new_ref"
+    git -C "$SRC" checkout --quiet --detach FETCH_HEAD
+    ensure_packages
+  fi
   if systemd_available && systemctl --user is-active --quiet "$UNIT_NAME" 2>/dev/null; then
     systemctl --user restart "$UNIT_NAME"
     log "unit restarted"
@@ -205,6 +226,12 @@ do_status() {
   echo "instance home: $SEARXNG_HOME"
   if systemd_available; then
     echo "unit: $(systemctl --user is-active "$UNIT_NAME" 2>/dev/null; true)"
+    if loginctl show-user "$USER" -p Linger 2>/dev/null | grep -q '=yes'; then
+      echo "linger: on (the unit starts at boot)"
+    else
+      echo "linger: off — the unit will NOT start after a reboot until you log in with a systemd session"
+      echo "        (enable with: $0 linger)"
+    fi
   else
     echo "unit: systemd user session unavailable"
   fi
@@ -222,10 +249,63 @@ do_status() {
   fi
 }
 
+do_linger() {
+  need loginctl
+  if loginctl show-user "$USER" -p Linger 2>/dev/null | grep -q '=yes'; then
+    log "linger is already on"
+  else
+    loginctl enable-linger "$USER"
+    log "linger enabled: the searxng user unit now starts at boot without a login"
+  fi
+}
+
+do_doctor() {
+  local failures=0
+  check() {
+    local label="$1"; shift
+    if "$@" >/dev/null 2>&1; then
+      echo "PASS  $label"
+    else
+      echo "FAIL  $label"
+      failures=$((failures + 1))
+    fi
+  }
+  check 'python >= 3.9' bash -c 'command -v python3 >/dev/null && python3 -c "import sys; sys.exit(0 if sys.version_info >= (3,9) else 1)"'
+  check 'git' git --version
+  check 'curl' curl --version
+  if systemd_available; then
+    check "unit $UNIT_NAME active" systemctl --user is-active --quiet "$UNIT_NAME"
+    if loginctl show-user "$USER" -p Linger 2>/dev/null | grep -q '=yes'; then
+      echo 'PASS  linger (starts at boot)'
+    else
+      echo 'WARN  linger off — the unit will not start after a reboot without a login (enable: ./install.sh linger)'
+    fi
+  else
+    echo 'WARN  systemd user session unavailable — the unit cannot be managed; start the instance manually'
+  fi
+  check "engine importable (venv)" "$VENV/bin/python" -c 'import searx, waitress'
+  check 'health endpoint' curl -fsS -o /dev/null -m 3 "http://$BIND_HOST:$BIND_PORT/healthz"
+  check 'JSON API responds' curl -fsS -o /dev/null -m 5 "http://$BIND_HOST:$BIND_PORT/search?q=ping&format=json"
+  if grep -q 'format=json\|- json' "$SETTINGS" 2>/dev/null; then
+    echo 'PASS  settings.yml has the JSON format enabled'
+  elif [ -f "$SETTINGS" ]; then
+    echo 'WARN  settings.yml exists but the JSON format is not declared (JSON API will 403)'
+  else
+    echo 'FAIL  settings.yml missing'
+    failures=$((failures + 1))
+  fi
+  if [ "$failures" -gt 0 ]; then
+    fail "$failures check(s) failed — see the FAIL lines above"
+  fi
+  log 'all checks passed'
+}
+
 case "$MODE" in
   install) do_install ;;
   update)  do_update ;;
   uninstall) do_uninstall ;;
   status)  do_status ;;
-  *) fail "unknown mode '$MODE' (use: install | update | uninstall | status)" ;;
+  doctor)  do_doctor ;;
+  linger)  do_linger ;;
+  *) fail "unknown mode '$MODE' (use: install | update | uninstall | status | doctor | linger)" ;;
 esac

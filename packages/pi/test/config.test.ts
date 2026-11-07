@@ -30,6 +30,40 @@ describe('loadPiConfig', () => {
     expect(config.browser?.approval).toBe('all')
   })
 
+  it('accepts any core config key without adapter changes (passthrough type)', async () => {
+    await writeFile(
+      join(dir, CONFIG_FILE_NAME),
+      JSON.stringify({ search: { maxSerpBytes: 1024 }, browser: { screenshotInlineDefault: true, authProfiles: { 'x': '/p' } } }),
+    )
+    const config = loadPiConfig(dir)
+    expect(config.search?.maxSerpBytes).toBe(1024)
+    expect(config.browser?.screenshotInlineDefault).toBe(true)
+    expect(config.browser?.authProfiles?.['x']).toBe('/p')
+  })
+
+  it('normalizes legacy fields: storePath, embedEndpoint/embedModel', async () => {
+    await writeFile(
+      join(dir, CONFIG_FILE_NAME),
+      JSON.stringify({ search: { storePath: '/legacy.db', embedEndpoint: 'http://embed.test', embedModel: 'm' } }),
+    )
+    const config = loadPiConfig(dir)
+    expect(config.store?.path).toBe('/legacy.db')
+    expect(config.search?.embed?.endpoint).toBe('http://embed.test')
+    expect(config.search?.embed?.model).toBe('m')
+    expect((config.search as Record<string, unknown>)['storePath']).toBeUndefined()
+    expect((config.search as Record<string, unknown>)['embedEndpoint']).toBeUndefined()
+  })
+
+  it('core-shaped fields win over legacy aliases', async () => {
+    await writeFile(
+      join(dir, CONFIG_FILE_NAME),
+      JSON.stringify({ search: { storePath: '/legacy.db', embedEndpoint: 'http://old.test', embed: { endpoint: 'http://new.test' } }, store: { path: '/new.db' } }),
+    )
+    const config = loadPiConfig(dir)
+    expect(config.store?.path).toBe('/new.db')
+    expect(config.search?.embed?.endpoint).toBe('http://new.test')
+  })
+
   it('throws on malformed JSON', async () => {
     await writeFile(join(dir, CONFIG_FILE_NAME), '{ not json')
     expect(() => loadPiConfig(dir)).toThrow(/cannot parse/)
@@ -42,86 +76,55 @@ describe('loadPiConfig', () => {
 })
 
 describe('toCoreConfig (Pi → core mapping)', () => {
-  it('maps an empty config to empty capability blocks (core defaults apply)', () => {
-    const core = toCoreConfig({})
-    expect(core).toEqual({ search: {}, fetch: {}, platforms: {}, store: {}, providers: {} })
+  it('maps an empty config to an empty core config (core defaults apply)', () => {
+    expect(toCoreConfig({})).toEqual({})
   })
 
-  it('passes search/fetch/platforms/browser through', () => {
-    const core = toCoreConfig({
+  it('strips the Pi-only history block', () => {
+    const core = toCoreConfig({ history: { history: false, cacheClear: true, stats: false } })
+    expect(core).toEqual({})
+  })
+
+  it('passes core-shaped blocks through (single source of truth)', () => {
+    const config = {
       search: {
         engines: ['exa'],
-        mode: 'fuse',
+        mode: 'fuse' as const,
         region: 'us',
         freshness: 'week',
         rateLimitPerSec: 0.5,
         timeoutMs: 15_000,
         cacheTtlMs: 60_000,
-        enrich: { enabled: true, fetchLimit: 4, keep: 3 },
-        embedEndpoint: 'http://embed.test/v1',
-        embedModel: 'm',
-        storePath: '/tmp/x.db',
+        maxSerpBytes: 1024,
+        enrich: { enabled: true, fetchLimit: 4, keep: 3, fetchTimeoutMs: 9_000 },
+        embed: { endpoint: 'http://embed.test/v1', model: 'm', timeoutMs: 7_000 },
       },
       fetch: { cacheTtlMs: 60_000, maxOutputChars: 1_000, allowPrivateNetworks: true, pdf: { enabled: false, maxSizeBytes: 2048, maxPages: 1 }, video: { enabled: false }, github: { enabled: false, maxCloneBytes: 1024, maxTreeEntries: 2 } },
       extended: { curator: { enabled: true, bind: '127.0.0.1', host: '127.0.0.1', remote: false } },
       platforms: { enabled: false, maxResults: 5 },
-      browser: { enabled: true, headless: false, approval: 'all', maxConcurrentTabs: 2 },
-    })
-    expect(core.search).toMatchObject({
-      engines: ['exa'],
-      mode: 'fuse',
-      region: 'us',
-      freshness: 'week',
-      rateLimitPerSec: 0.5,
-      timeoutMs: 15_000,
-      cacheTtlMs: 60_000,
-      enrich: { enabled: true, fetchLimit: 4, keep: 3 },
-      embed: { endpoint: 'http://embed.test/v1', model: 'm' },
-    })
-    expect(core.fetch).toEqual({ cacheTtlMs: 60_000, maxOutputChars: 1_000, allowPrivateNetworks: true, pdf: { enabled: false, maxSizeBytes: 2048, maxPages: 1 }, video: { enabled: false }, github: { enabled: false, maxCloneBytes: 1024, maxTreeEntries: 2 } })
-    expect(core.extended).toEqual({ curator: { enabled: true, bind: '127.0.0.1', host: '127.0.0.1', remote: false } })
-    expect(core.platforms).toEqual({ enabled: false, maxResults: 5 })
-    expect(core.browser).toEqual({ enabled: true, headless: false, approval: 'all', maxConcurrentTabs: 2 })
-    expect(core.store).toEqual({ path: '/tmp/x.db' })
+      browser: { enabled: true, headless: false, approval: 'all' as const, maxConcurrentTabs: 2 },
+      store: { path: '/tmp/x.db' },
+      ssrf: { trustEnvProxy: false },
+    }
+    expect(toCoreConfig(config)).toEqual(config)
   })
 
-  it('treats empty strings and zero maxUses as unset (sentinels filtered)', () => {
-    const core = toCoreConfig({
-      search: { region: '' },
-      providers: { exa: { apiKey: '', maxUses: 0, explicitOnly: false } },
-    })
-    expect(core.search).toEqual({})
-    expect(core.providers).toEqual({})
-  })
-
-  it('maps provider blocks and keeps xai explicitOnly default implicit', () => {
+  it('drops sentinel provider values (empty strings, zero maxUses, empty blocks)', () => {
     const core = toCoreConfig({
       providers: {
-        xai: { explicitOnly: true }, // = default: must NOT be emitted
-        openai: { explicitOnly: true }, // ≠ default: emitted
-        exa: { apiKey: 'sk-test', maxUses: 3, apiKeyEnv: 'EXA_API_KEY', baseUrl: 'https://x', model: 'm', explicitOnly: true },
-        searxng: { endpoint: 'https://searx.test' },
-        ollama: { endpoint: '' },
+        exa: { apiKey: '', maxUses: 0, apiKeyEnv: 'EXA_API_KEY' } as unknown as { apiKey?: string; apiKeyEnv?: string; baseUrl?: string },
+        xai: { apiKey: 'sk-x' },
+        searxng: { endpoint: '' },
       },
     })
     expect(core.providers).toEqual({
-      openai: { explicitOnly: true },
-      exa: { apiKey: 'sk-test', maxUses: 3, apiKeyEnv: 'EXA_API_KEY', baseUrl: 'https://x', model: 'm', explicitOnly: true },
-      searxng: { endpoint: 'https://searx.test' },
+      exa: { apiKeyEnv: 'EXA_API_KEY' },
+      xai: { apiKey: 'sk-x' },
     })
   })
 
-  it('emits a browser block only when `enabled` is present', () => {
-    expect(toCoreConfig({ browser: { headless: false } })).toEqual({
-      search: {},
-      fetch: {},
-      platforms: {},
-      store: {},
-      providers: {},
-    })
-    expect(toCoreConfig({ browser: { enabled: true, headless: false } }).browser).toMatchObject({
-      enabled: true,
-      headless: false,
-    })
+  it('drops an all-sentinel providers block entirely', () => {
+    const core = toCoreConfig({ providers: { exa: { apiKey: '' } } })
+    expect(core.providers).toBeUndefined()
   })
 })

@@ -128,7 +128,7 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
     ])
     expect(result.stack.config.search.mode).toBe('fallback')
     // host identity + state dir under the agent dir
-    expect(result.host.identity).toEqual({ name: 'pi', version: '1.4.6' })
+    expect(result.host.identity).toEqual({ name: 'pi', version: '1.4.7' })
     expect(result.host.paths.stateDir).toBe(join(agentDir, 'web-search'))
   })
 
@@ -473,7 +473,7 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
 
   it('applies the configured store path', () => {
     const custom = join(agentDir, 'custom.db')
-    const { result } = build({ search: { storePath: custom } })
+    const { result } = build({ store: { path: custom } })
     expect(result.stack.config.store?.path).toBe(custom)
   })
 

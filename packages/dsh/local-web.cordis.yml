@@ -34,7 +34,7 @@
       name: '@agents-web-search/dsh'
       config:
         search:
-          engines: [ddg, bing]
+          engines: [searxng, ddg, bing]
           mode: fallback
           enrich:
             enabled: true

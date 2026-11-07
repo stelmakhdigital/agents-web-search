@@ -18,8 +18,8 @@ a git repo in **one command** (it clones into its install dir and runs
 ships inside it):
 
 ```sh
-pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.4.0   # user scope
-pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.4.0  # project scope
+pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.4.7   # user scope
+pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.4.7  # project scope
 pi list                                                # verify
 # update: pi update (for a pinned ref — fetch origin <ref>)
 ```
@@ -62,7 +62,9 @@ All config is local. Secrets stay out of the file (env or explicit keys):
     "engines": ["exa", "ddg"],        // default: searxng, ddg, bing (fallback mode; searxng is optional — see SearXNG below)
     "mode": "fuse",                   // "fallback" (default) | "fuse" (parallel + RRF)
     "enrich": { "enabled": true, "fetchLimit": 6, "keep": 5 },
-    "storePath": ""                   // default: <agentDir>/web-search/web.db
+    "embed": { "endpoint": "" }        // embedding re-rank (optional)
+  },
+  "store": { "path": "" },            // default: <agentDir>/web-search/web.db
   },
   "fetch": { "maxOutputChars": 100000, "revalidate": true, "allowPrivateNetworks": false, "pdf": { "enabled": true, "maxSizeBytes": 20971520, "maxPages": 50 } },
   "platforms": { "enabled": true },   // false hides web_platform_search
@@ -88,6 +90,16 @@ All config is local. Secrets stay out of the file (env or explicit keys):
 - **State**: `<agentDir>/web-search/web.db` (SQLite) + `temp/`; the agent dir
   is `~/.pi/agent`, overridable with `$PI_CODING_AGENT_DIR` (used by tests).
 - **Config applies at startup** (the extension reads it once per process).
+- **The file type is the core's config**: any `CoreConfig` key is usable
+  without an adapter update (`search.maxSerpBytes`, `browser.authProfiles`,
+  `ssrf.trustEnvProxy`, …). Legacy pre-1.4.7 names (`search.storePath`,
+  `search.embedEndpoint`/`embedModel`) are still normalized on load; the
+  core-shaped fields win when both are present.
+- **Debug log**: start pi with `WEB_SEARCH_DEBUG=1` to append the core's
+  structured search/fetch log lines to `<agentDir>/web-search/log.txt`.
+- **Diagnostics**: `web_search_stats` lists every engine with its routing
+  state (unavailable / cooldown ms / consecutive failures) — the built-in
+  doctor for "why is the search degraded".
 - `browser` needs `npx playwright install chromium` once (headless shell).
 - **SSRF guard**: by default the browser (and `web_fetch` / `web_platform_search`) **blocks private/reserved addresses** — LAN (`192.168.x.x`, `10.x`, …) and loopback (`127.0.0.1`) ⇒ `Error (BROWSER_SSRF_BLOCKED)`. To reach local services (dev dashboards, local APIs) set `"allowPrivateNetworks": true` in the corresponding section (`browser` / `fetch` / `platforms`). This is a network boundary, not a permission gate — the `/browser-guard` toggle does not affect it. For the **browser** only, `/browser-guard:ssrf` flips the guard for the current session without touching the file (footer badge `🔓 SSRF OFF`); the state is persistent like the other guard toggles (`guard-state.json`, survives `/reload` and `pi -c`), and a new session falls back to the config value.
 
@@ -127,6 +139,10 @@ ddg+bing …` with the install-script hint. The endpoint comes from
 `providers.searxng.endpoint` or the core default. To disable the check,
 remove `searxng` from `search.engines` in `web-search.json` (an unset
 `search.engines` inherits the core default chain, which includes it).
+The model is not left guessing: the dead instance is recorded as a session
+log entry (`web-search-searxng-down`), and the first `web_search` result of
+the session carries a note explaining that results came from the
+`ddg`/`bing` fallback.
 
 ### Browser approval (fail-closed)
 

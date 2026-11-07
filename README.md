@@ -71,8 +71,8 @@ Pi installs a git repo in **one command** (it clones into its install dir
 and runs `npm install` itself):
 
 ```sh
-pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.4.0   # user scope
-pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.4.0  # project scope
+pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.4.7   # user scope
+pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.4.7  # project scope
 pi list
 # update: pi update (for a pinned ref — fetch origin <ref>)
 ```
@@ -113,7 +113,9 @@ MCP-сервер, не используется), ставит движок + wa
 `{endpoint}/healthz` с таймаутом 800 мс, fire-and-forget — старт сессии не
 блокируется. Мёртвый инстанс даёт одно предупреждение: `agents-web-search:
 SearXNG недоступен на <endpoint> — поиск пойдёт через ddg+bing …` с
-подсказкой запуска install-скрипта. Endpoint берётся из
+подсказкой запуска install-скрипта; кроме TUI-предупреждения модель получает
+пояснение в первом результате `web_search` (сессия-запись
+`web-search-searxng-down`). Endpoint берётся из
 `providers.searxng.endpoint` или из дефолта ядра. Отключить проверку —
 убрать `searxng` из `search.engines` в `web-search.json` (не заданный
 `search.engines` наследует дефолтную цепочку ядра, где searxng есть).

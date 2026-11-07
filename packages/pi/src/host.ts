@@ -20,7 +20,7 @@
  * @module @agents-web-search/pi/host
  */
 
-import { readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, readFileSync, writeFileSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { CoreError, createWebStack, type HostAdapter, type ToolSpec, type WebStack } from '@agents-web-search/core'
@@ -101,6 +101,26 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
   const ctxSlot: { current: ExtensionContext | undefined } = { current: undefined }
   const lastCtx: { current: ExtensionContext | undefined } = { current: undefined }
 
+  // Set when the startup SearXNG health-check finds the local instance dead;
+  // the first `web_search` of the session then carries an explanatory note
+  // (the model otherwise has no way to know results came from the fallback).
+  const searxngDown: { value?: string } = { value: undefined }
+
+  // Host-side debug log: WEB_SEARCH_DEBUG=1 (or `debug.log`-style env) routes
+  // the core's structured log lines into `<stateDir>/log.txt`.
+  const debugLog = process.env['WEB_SEARCH_DEBUG'] === '1'
+  const logFile = join(stateDir, 'log.txt')
+  const appendLog = (level: string, message: string, meta?: Record<string, unknown>): void => {
+    try {
+      const line = `[${new Date().toISOString()}] ${level} ${message}${
+        meta !== undefined && Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : ''
+      }\n`
+      appendFileSync(logFile, line)
+    } catch {
+      /* logging must never break the tool */
+    }
+  }
+
   // Browser approval gate toggles. Persistent in the shared
   // `<agentDir>/guard-state.json` (same file and key convention as
   // pi-extensions bash-guard/dir-guard) — survives /reload, pi -c and
@@ -153,14 +173,18 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
       skipClickType: browserGuard.skipClickType,
       ssrf: browserGuard.ssrf,
     }
-    writeFileSync(guardStateFile, JSON.stringify(all, null, 2))
+    // Atomic write (temp + rename): the file is shared with pi-extensions
+    // guards; a torn write from a concurrent process must not corrupt it.
+    const tmp = `${guardStateFile}.tmp`
+    writeFileSync(tmp, JSON.stringify(all, null, 2))
+    renameSync(tmp, guardStateFile)
   }
   // Leading space: pi's footer sorts status entries alphabetically and
   // truncates from the right, so a leading-space key surfaces first.
   const GUARD_STATUS_KEY = ' browser-guard'
 
   const host: HostAdapter = {
-    identity: { name: 'pi', version: '1.4.6' },
+    identity: { name: 'pi', version: '1.4.7' },
     config: coreConfig,
     paths: { stateDir, tempDir: join(stateDir, 'temp') },
 
@@ -170,7 +194,7 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
     registerTools: (specs: readonly ToolSpec[]) => {
       for (const spec of specs) {
         if (!toolEnabled(spec.name, config)) continue
-        pi.registerTool(toPiTool(spec, ctxSlot, lastCtx))
+        pi.registerTool(toPiTool(spec, ctxSlot, lastCtx, searxngDown))
       }
       // Pi has no tool-unregistration API in v0.1: the disposer is a no-op;
       // session_shutdown closes the stack (store/browser) instead.
@@ -209,8 +233,10 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
       )
     },
 
-    // v0.1: no-op (Pi extension logging goes through the host console).
-    log: () => {},
+    // Debug log: off by default (WEB_SEARCH_DEBUG=1 appends to <stateDir>/log.txt).
+    log: (level, message, meta) => {
+      if (debugLog) appendLog(level, message, meta)
+    },
 
     // Roadmap 5.4: auxiliary LLM via the Pi model registry (curator
     // summaries, web_fetch question mode). Uses the latest tool-execution
@@ -318,13 +344,21 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
       const endpoint = searxngEndpoint(config)
       void searxngAlive(endpoint)
         .then((alive) => {
-          if (alive || !ctx.hasUI || typeof ctx.ui?.notify !== 'function') return
-          ctx.ui.notify(
-            `agents-web-search: SearXNG недоступен на ${endpoint} — поиск пойдёт через ddg+bing. `
-              + 'Поднять локальный инстанс: скрипт scripts/searxng/install.sh из пакета agents-web-search '
-              + '(native venv + systemd user unit, без docker). Отключить проверку: убрать searxng из search.engines в web-search.json.',
-            'warning',
-          )
+          if (alive) return
+          // 1) The model must know results will come from the fallback: the
+          // first web_search of the session carries an explanatory note.
+          searxngDown.value = endpoint
+          // 2) Session log entry (persists, not sent to the LLM).
+          try { pi.appendEntry('web-search-searxng-down', { endpoint }) } catch { /* best-effort */ }
+          // 3) Operator hint (TUI).
+          if (ctx.hasUI && typeof ctx.ui?.notify === 'function') {
+            ctx.ui.notify(
+              `agents-web-search: SearXNG недоступен на ${endpoint} — поиск пойдёт через ddg+bing. `
+                + 'Поднять локальный инстанс: скрипт scripts/searxng/install.sh из пакета agents-web-search '
+                + '(native venv + systemd user unit, без docker). Отключить проверку: убрать searxng из search.engines в web-search.json.',
+              'warning',
+            )
+          }
         })
         .catch(() => {}) // never surface a probe failure beyond the warning path
     }
@@ -434,6 +468,7 @@ function toPiTool(
   spec: ToolSpec,
   ctxSlot: { current: ExtensionContext | undefined },
   lastCtx: { current: ExtensionContext | undefined },
+  searxngDown: { value?: string },
 ) {
   return {
     name: spec.name,
@@ -470,8 +505,17 @@ function toPiTool(
             // Pi error convention: throw — the runtime reports isError.
             throw new Error(out.text)
           }
+          let text = out.text
+          // The startup health-check found the local SearXNG dead: explain
+          // the fallback to the model once, on the first web_search result.
+          if (spec.name === 'web_search' && searxngDown.value !== undefined) {
+            text += `\n\nNote: the local SearXNG instance at ${searxngDown.value} is unreachable — `
+              + 'results came from the ddg/bing fallback. Install or repair the instance with '
+              + 'agents-web-search scripts/searxng/install.sh, or remove searxng from search.engines.'
+            searxngDown.value = undefined
+          }
           const result: AgentToolResult<unknown> = {
-            content: [{ type: 'text', text: truncateForPi(out.text) }],
+            content: [{ type: 'text', text: truncateForPi(text) }],
             details: out.details,
           }
           return result

@@ -73,7 +73,7 @@ function makeCtx(): ExtensionContext {
 async function build(config: ContractConfig): Promise<ContractHandles> {
   const { pi, tools } = makeMockPi()
   const piConfig: PiConfig = {
-    search: { storePath: config.storePath },
+    search: {}, store: { path: config.storePath },
     ...(config.browserEnabled
       ? { browser: { enabled: true, approval: config.approval === undefined ? 'navigate' : config.approval } }
       : { browser: { enabled: false } }),
