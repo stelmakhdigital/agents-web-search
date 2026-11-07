@@ -13,23 +13,7 @@
  */
 
 import { Type, type TSchema } from 'typebox'
-
-/** A JSON-Schema value node (structural; the core owns the real types). */
-interface JsonSchemaNode {
-  readonly type?: string
-  readonly description?: string
-  readonly enum?: readonly (string | number | boolean)[]
-  readonly minimum?: number
-  readonly maximum?: number
-  readonly minItems?: number
-  readonly maxItems?: number
-  readonly items?: JsonSchemaNode
-  readonly properties?: Readonly<Record<string, JsonSchemaNode>>
-  readonly additionalProperties?: boolean
-  readonly oneOf?: readonly JsonSchemaNode[]
-  readonly required?: readonly string[]
-  readonly [keyword: string]: unknown
-}
+import type { JsonSchemaNode } from '@agents-web-search/core'
 
 /**
  * Convert a JSON-Schema value node to a typebox schema. Throws on an

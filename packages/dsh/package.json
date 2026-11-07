@@ -38,7 +38,7 @@
     "typecheck:host": "node scripts/typecheck-host.mjs"
   },
   "dependencies": {
-    "@agents-web-search/core": "file:../../.vendor/agents-web-search-core-1.2.0.tgz"
+    "@agents-web-search/core": "file:../../.vendor/agents-web-search-core-1.3.0.tgz"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "*",
