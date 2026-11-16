@@ -35,7 +35,7 @@ import type {
 } from '@earendil-works/pi-coding-agent'
 
 import { toCoreConfig, type PiConfig } from './config.ts'
-import { searxngAlive, searxngEndpoint, searxngInEngines } from './searxng-health.ts'
+import { isLoopbackEndpoint, searxngAlive, searxngEndpoint, searxngInEngines, startLocalSearxng } from './searxng-health.ts'
 import { toTypeBoxParameters } from './schema.ts'
 import { truncateForPi } from './truncate.ts'
 
@@ -170,7 +170,7 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
   const GUARD_STATUS_KEY = ' browser-guard'
 
   const host: HostAdapter = {
-    identity: { name: 'pi', version: '1.4.10' },
+    identity: { name: 'pi', version: '1.4.11' },
     config: coreConfig,
     paths: { stateDir, tempDir: join(stateDir, 'temp') },
 
@@ -313,30 +313,48 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
 
     // SearXNG health-check (startup only, never in subagent processes, and
     // only when the searxng engine participates in the chain): a dead local
-    // instance is not an error — the router falls through to ddg+bing — the
-    // user just gets a one-time hint. Fire-and-forget: the session start is
-    // never blocked (the probe itself has an 800 ms timeout).
+    // instance is not an error — the router falls through to ddg+bing. With
+    // `searxng.autostart` (default true) a down loopback instance is first
+    // brought back through the systemd user unit installed by
+    // scripts/searxng/install.sh; only if that fails (or is off/not
+    // installed) does the user get the one-time hint. Fire-and-forget: the
+    // session start is never blocked.
     if (event.reason === 'startup' && !isSubagentProcess && searxngInEngines(config)) {
       const endpoint = searxngEndpoint(config)
-      void searxngAlive(endpoint)
-        .then((alive) => {
-          if (alive) return
-          // 1) The model must know results will come from the fallback: the
-          // first web_search of the session carries an explanatory note.
-          searxngDown.value = endpoint
-          // 2) Session log entry (persists, not sent to the LLM).
-          try { pi.appendEntry('web-search-searxng-down', { endpoint }) } catch { /* best-effort */ }
-          // 3) Operator hint (TUI).
-          if (ctx.hasUI && typeof ctx.ui?.notify === 'function') {
-            ctx.ui.notify(
-              `agents-web-search: SearXNG недоступен на ${endpoint} — поиск пойдёт через ddg+bing. `
-                + 'Поднять локальный инстанс: скрипт scripts/searxng/install.sh из пакета agents-web-search '
-                + '(native venv + systemd user unit, без docker). Отключить проверку: убрать searxng из search.engines в web-search.json.',
-              'warning',
-            )
+      const autostart = config.searxng?.autostart ?? true
+      void (async () => {
+        if (await searxngAlive(endpoint)) return
+        // Recovery attempt through systemd (silent 'skipped' when the unit
+        // was never installed, the endpoint is remote, or autostart is off).
+        let autostartFailed = false
+        if (autostart && isLoopbackEndpoint(endpoint)) {
+          const outcome = await startLocalSearxng(endpoint)
+          if (outcome === 'up') {
+            if (ctx.hasUI && typeof ctx.ui?.notify === 'function') {
+              ctx.ui.notify(
+                'agents-web-search: SearXNG был недоступен — поднят автоматически (systemd: searxng.service).',
+                'info',
+              )
+            }
+            return
           }
-        })
-        .catch(() => {}) // never surface a probe failure beyond the warning path
+          autostartFailed = outcome === 'failed'
+        }
+        // 1) The model must know results will come from the fallback: the
+        // first web_search of the session carries an explanatory note.
+        searxngDown.value = endpoint
+        // 2) Session log entry (persists, not sent to the LLM).
+        try { pi.appendEntry('web-search-searxng-down', { endpoint }) } catch { /* best-effort */ }
+        // 3) Operator hint (TUI).
+        if (ctx.hasUI && typeof ctx.ui?.notify === 'function') {
+          ctx.ui.notify(
+            `agents-web-search: SearXNG недоступен на ${endpoint}${autostartFailed ? ' (автозапуск через systemd не помог)' : ''} — поиск пойдёт через ddg+bing. `
+              + 'Поднять локальный инстанс: скрипт scripts/searxng/install.sh из пакета agents-web-search '
+              + '(native venv + systemd user unit, без docker). Отключить проверку: убрать searxng из search.engines в web-search.json.',
+            'warning',
+          )
+        }
+      })().catch(() => {}) // never surface a probe/start failure beyond the warning path
     }
 
     // Browser-module readiness (startup only, never in subagent processes,
