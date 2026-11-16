@@ -133,3 +133,18 @@ describe('toCoreConfig (Pi → core mapping)', () => {
     expect(core.providers).toBeUndefined()
   })
 })
+
+describe('toCoreConfig searxng block (pi-only)', () => {
+  it('strips the searxng block from the core config', () => {
+    const core = toCoreConfig({ searxng: { autostart: false } })
+    expect(core).not.toHaveProperty('searxng')
+    expect(core).toEqual({ browser: { enabled: true } })
+  })
+
+  it('loadPiConfig accepts the searxng block', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'aws-pi-cfg-'))
+    await writeFile(join(dir, 'web-search.json'), JSON.stringify({ searxng: { autostart: true } }))
+    expect(loadPiConfig(dir).searxng).toEqual({ autostart: true })
+    await rm(dir, { recursive: true, force: true })
+  })
+})

@@ -18,8 +18,8 @@ a git repo in **one command** (it clones into its install dir and runs
 ships inside it):
 
 ```sh
-pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.4.7   # user scope
-pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.4.7  # project scope
+pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.4.11   # user scope
+pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.4.11  # project scope
 pi list                                                # verify
 # update: pi update (for a pinned ref — fetch origin <ref>)
 ```
@@ -79,7 +79,8 @@ All config is local. Secrets stay out of the file (env or explicit keys):
     "exa":    { "apiKeyEnv": "EXA_API_KEY", "maxUses": 3 },
     "xai":    { "explicitOnly": true }, // never joins the auto chain (default)
     "searxng": { "endpoint": "https://searx.example" }
-  }
+  },
+  "searxng": { "autostart": true }   // dead local instance → systemctl --user start (default true)
 }
 ```
 
@@ -140,7 +141,20 @@ prints the manual start command.
 **Startup health-check**: on `session_start` (reason `startup`, once per pi
 process, never in subagent processes) the adapter probes
 `{endpoint}/healthz` with an 800 ms timeout, fire-and-forget — the session
-start is never blocked. A dead instance produces one warning:
+start is never blocked.
+
+**Autostart** (`searxng.autostart`, default `true`): when the probe finds a
+loopback instance down, the adapter first tries to bring it back through
+the systemd user unit installed by `install.sh`
+(`systemctl --user start searxng.service` — idempotent), then polls
+`/healthz` while waitress boots (≤ 15 s, in the background). Success →
+one info notice (`поднят автоматически`), no fallback note for the model.
+The attempt is silently skipped when it cannot apply: the unit file is
+absent (never installed / non-systemd host), the endpoint is remote, or
+`searxng.autostart: false`. Only when a start was actually attempted and
+failed does the warning mention it.
+
+A dead instance (after autostart) produces one warning:
 `agents-web-search: SearXNG недоступен на <endpoint> — поиск пойдёт через
 ddg+bing …` with the install-script hint. The endpoint comes from
 `providers.searxng.endpoint` or the core default. To disable the check,

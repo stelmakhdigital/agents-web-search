@@ -4,6 +4,27 @@
 версии пакетов синхронизированы (`dsh`, `pi`; `contract` — внутренний,
 private).
 
+## [1.4.11] — 2026-11-07
+
+Автозапуск локального SearXNG: мёртвый loopback-инстанс поднимается через
+systemd-user unit прямо на старте сессии.
+
+### Добавлено
+
+- `packages/pi`: настройка `searxng.autostart` (по умолчанию `true`). Если
+  health-check на `session_start` нашёл инстанс мёртвым, адаптер выполняет
+  `systemctl --user start searxng.service` (идемпотентно) и опрашивает
+  `/healthz` до 15 с в фоне; успех — одно info-уведомление, без пометки про
+  fallback. Попытка пропускается молча, если unit-файла нет (не
+  устанавливали / нет systemd), endpoint удалённый или настройка выключена;
+  текст «автозапуск через systemd не помог» появляется только после реальной
+  неудачной попытки.
+- `startLocalSearxng()` в `searxng-health.ts` (результат `up | skipped |
+  failed`); живая проверка — `LIVE_AUTOSTART=1 vitest run
+  test/searxng-autostart.live.test.ts` (gated, вне CI).
+- version: root и `@agents-web-search/pi` → `1.4.11` (+ identity pi); пины
+  ядра обновлены.
+
 ## [1.4.10] — 2026-11-07
 
 Рефакторинг по итогам скаут-ревью обоих пакетов; ядро 1.3.0 (вендор

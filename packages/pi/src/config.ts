@@ -36,6 +36,21 @@ export interface PiOnlyConfig {
     /** Register the `web_search_stats` tool. Default true. */
     stats?: boolean
   }
+  /** Local SearXNG instance behavior (host-side; the core never sees this). */
+  searxng?: {
+    /**
+     * When the session_start health-check finds the local instance down,
+     * bring it up via the systemd user unit installed by
+     * `scripts/searxng/install.sh` (`systemctl --user start searxng.service`,
+     * idempotent), wait for it to answer `/healthz`, and report the outcome.
+     * Only loopback endpoints are autostarted; when the unit file is absent
+     * (never installed / non-systemd host) the check silently keeps the old
+     * warn-only behavior. Default true. Disable with `false` to get pure
+     * warn-only behavior (the search chain already falls through to
+     * ddg+bing either way).
+     */
+    autostart?: boolean
+  }
 }
 
 /**
@@ -107,7 +122,7 @@ function normalizeLegacyFields(raw: Record<string, unknown>): void {
  * wins; playwright degrades to a clear `BROWSER_UNAVAILABLE` when missing).
  */
 export function toCoreConfig(config: PiConfig): CoreConfig {
-  const { history: _piOnly, providers, browser, ...rest } = config
+  const { history: _piOnly, searxng: _piOnlySearxng, providers, browser, ...rest } = config
   let filteredProviders: CoreConfig['providers'] | undefined
   if (providers !== undefined) {
     const filtered: Record<string, unknown> = {}
