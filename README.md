@@ -186,3 +186,9 @@ shared contract suite for new adapters: `runHostContractTests`
 
 This directory is its own git repository (branch `master`); commit from inside
 it and push after each commit (GitHub: `stelmakhdigital/agents-web-search`).
+
+Workflow (standing): work on an `agent/*` branch; when the task is done
+and the test matrix is green, merge and prune in one step —
+`scripts/merge-and-prune.sh <branch> [message]` merges into `master`
+with `--no-ff`, pushes, and deletes the branch (local + origin). Merged
+branches are never left behind.
