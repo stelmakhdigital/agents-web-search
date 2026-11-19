@@ -55,6 +55,20 @@ export const FETCH_PROVIDER_ID = 'cached-http'
  */
 const HOST_OWNED_TOOLS = new Set(['web_search', 'web_fetch'])
 
+/**
+ * Apply the `platforms.enabled` / `history.*` tool switches (mirror of the pi
+ * adapter's filter): `false` disables the corresponding tool registration
+ * (absent ⇒ enabled). Before this the dsh schema accepted the flags but they
+ * were dead config — the tools were always registered.
+ */
+function toolEnabled(name: string, config: Config): boolean {
+  if (name === 'web_platform_search') return config.platforms?.enabled !== false
+  if (name === 'web_history') return config.history?.history !== false
+  if (name === 'web_cache_clear') return config.history?.cacheClear !== false
+  if (name === 'web_search_stats') return config.history?.stats !== false
+  return true
+}
+
 /** Tools that are safe to run in parallel sibling groups (no shared mutable state). */
 
 /** Settings namespace for the plugin's config section. */
@@ -127,7 +141,7 @@ export function buildDshWebStack(ctx: Context, config: Config): DshWebStack {
   let stackRef: WebStack
 
   const host: HostAdapter = {
-    identity: { name: 'dsh', version: '1.0.2' }, // keep in sync with package.json (UA/logs/stats)
+    identity: { name: 'dsh', version: '1.0.3' }, // keep in sync with package.json (UA/logs/stats)
     config: coreConfig,
     paths: {
       stateDir,
@@ -155,6 +169,7 @@ export function buildDshWebStack(ctx: Context, config: Config): DshWebStack {
       const unregisters: Array<() => void> = []
       for (const spec of specs) {
         if (HOST_OWNED_TOOLS.has(spec.name)) continue
+        if (!toolEnabled(spec.name, config)) continue
         const unregister = ctx.tools.register(defineTool({
           name: spec.name,
           description: spec.description,

@@ -170,7 +170,7 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
   const GUARD_STATUS_KEY = ' browser-guard'
 
   const host: HostAdapter = {
-    identity: { name: 'pi', version: '1.4.12' },
+    identity: { name: 'pi', version: '1.4.13' },
     config: coreConfig,
     paths: { stateDir, tempDir: join(stateDir, 'temp') },
 

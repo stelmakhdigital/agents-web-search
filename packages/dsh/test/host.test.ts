@@ -42,6 +42,18 @@ describe('buildDshWebStack (real core, mocked host modules)', () => {
     void result.stack.dispose()
   })
 
+  it('applies the platforms.enabled / history.* tool switches (no more dead config)', () => {
+    const { ctx, registered } = makeCtx()
+    const result = buildDshWebStack(ctx as never, {
+      ...config(),
+      platforms: { enabled: false },
+      history: { history: false, cacheClear: false, stats: true },
+    })
+    const names = registered.tools.map(t => t.name)
+    expect(names).toEqual(['get_search_content', 'web_search_stats'])
+    void result.stack.dispose()
+  })
+
   it('resolves credentials: credentials domain → launch environment (per-search)', async () => {
     const asked = new Set<string>()
     const { ctx } = makeCtx({
