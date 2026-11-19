@@ -4,6 +4,21 @@
 версии пакетов синхронизированы (`dsh`, `pi`; `contract` — внутренний,
 private).
 
+## [1.4.13] — 2026-11-19
+
+### Fixed
+
+- `packages/dsh` (1.0.3): фильтры инструментов `platforms.enabled` и
+  `history.{history,cacheClear,stats}` были мёртвым конфигом — схема принимала,
+  хост игнорировал, `web_platform_search`/`web_history`/`web_cache_clear`/
+  `web_search_stats` регистрировались всегда. Теперь `false` действительно
+  снимает регистрацию (зеркало pi-адаптера, общий тест на четыре флага).
+
+### Изменено
+
+- version: root и `@agents-web-search/pi` → `1.4.13` (+ identity pi); пины
+  установки и пины ядра → `@v1.4.13`.
+
 ## [1.4.12] — 2026-11-18
 
 Ядро 1.3.1: `browserReadiness()` теперь ловит и случай «бинарник есть, а
