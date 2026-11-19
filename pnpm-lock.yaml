@@ -78,7 +78,7 @@ importers:
 packages:
 
   '@agents-web-search/core@file:.vendor/agents-web-search-core-1.3.1.tgz':
-    resolution: {integrity: sha512-wZpqBEORNHVfi2yC2kBDY556pkp7c2IfHxtlkT4+Mvu7eryJK0evMOyVam2hsDSXcSF1uzApQNKZXnsFJoddfQ==, tarball: file:.vendor/agents-web-search-core-1.3.1.tgz}
+    resolution: {integrity: sha512-sd3X+w+NK2UYZydhvLx35hgZRoAZpm0yq829DK/ETOUpnzImJ5GoOrZcGh3gKmv26juvxciMmjKqQC94Yd1cGA==, tarball: file:.vendor/agents-web-search-core-1.3.1.tgz}
     version: 1.3.1
     engines: {node: '>=22'}
 
