@@ -18,8 +18,8 @@ a git repo in **one command** (it clones into its install dir and runs
 ships inside it):
 
 ```sh
-pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.4.11   # user scope
-pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.4.11  # project scope
+pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.4.12   # user scope
+pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.4.12  # project scope
 pi list                                                # verify
 # update: pi update (for a pinned ref — fetch origin <ref>)
 ```
@@ -109,6 +109,9 @@ All config is local. Secrets stay out of the file (env or explicit keys):
   adapter probes readiness (`browserReadiness()` from the core): a missing
   browser yields one warning with the exact fix + a session-log entry
   (`web-search-browser-setup`) — no launch, no download, no blocking.
+  Since core 1.3.1 the probe also catches the bare-Linux case "binary
+  present, system libraries missing" (`ldd` parse, no launch) and names the
+  libraries + the `--with-deps` / apt fix.
 - **SSRF guard**: by default the browser (and `web_fetch` / `web_platform_search`) **blocks private/reserved addresses** — LAN (`192.168.x.x`, `10.x`, …) and loopback (`127.0.0.1`) ⇒ `Error (BROWSER_SSRF_BLOCKED)`. To reach local services (dev dashboards, local APIs) set `"allowPrivateNetworks": true` in the corresponding section (`browser` / `fetch` / `platforms`). This is a network boundary, not a permission gate — the `/browser-guard` toggle does not affect it. For the **browser** only, `/browser-guard:ssrf` flips the guard for the current session without touching the file (footer badge `🔓 SSRF OFF`); the state is persistent like the other guard toggles (`guard-state.json`, survives `/reload` and `pi -c`), and a new session falls back to the config value.
 
 ## SearXNG (local instance)
