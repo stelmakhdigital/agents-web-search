@@ -90,6 +90,11 @@ describe('toCoreConfig (Pi → core mapping)', () => {
     expect(toCoreConfig({ browser: { headless: false } })).toEqual({ browser: { enabled: true, headless: false } })
   })
 
+  it('strips the pi-only browser.autoDownload (the core never sees it)', () => {
+    const core = toCoreConfig({ browser: { enabled: true, autoDownload: false, approval: 'all' } })
+    expect(core.browser).toEqual({ enabled: true, approval: 'all' })
+  })
+
   it('passes core-shaped blocks through (single source of truth)', () => {
     const config = {
       search: {

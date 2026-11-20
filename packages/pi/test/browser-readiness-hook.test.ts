@@ -78,7 +78,10 @@ describe('session_start browser readiness (real host, real probe)', () => {
   it('browser enabled (default): the setup entry appears exactly when the host is not ready', async () => {
     const expected = await browserReadiness()
     const notifications: Array<{ message: string; level: string }> = []
-    const { handlers, appended } = build({})
+    // autoDownload off here: this test pins the probe/entry behavior; the
+    // default-ON background install is covered in browser-autodownload.test.ts
+    // with a mocked installer (a test run must never download browsers).
+    const { handlers, appended } = build({ browser: { autoDownload: false } })
     await handlers.session_start?.[0]?.({ reason: 'startup' }, makeCtx(notifications))
     // only browser-readiness side effects count (the SearXNG health probe
     // may also fire on this startup — machines without a local instance)

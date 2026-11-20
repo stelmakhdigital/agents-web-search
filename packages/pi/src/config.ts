@@ -51,6 +51,18 @@ export interface PiOnlyConfig {
      */
     autostart?: boolean
   }
+  /** Browser-module, pi-only extras (everything else under `browser` passes to the core). */
+  browser?: {
+    /**
+     * When the readiness probe finds the playwright package but no Chromium
+     * binary: download it once in the background at startup
+     * (`playwright install chromium` — writes only to the user's browser
+     * cache, needs no root, idempotent). System libraries are NEVER
+     * installed from the plugin; warnings just print the distro-specific
+     * command. Default true; `false` keeps warn-only behavior.
+     */
+    autoDownload?: boolean
+  }
 }
 
 /**
@@ -135,7 +147,7 @@ export function toCoreConfig(config: PiConfig): CoreConfig {
     }
     if (Object.keys(filtered).length > 0) filteredProviders = filtered as CoreConfig['providers']
   }
-  const { enabled: browserEnabled, ...browserRest } = browser ?? {}
+  const { enabled: browserEnabled, autoDownload: _piOnlyAutoDownload, ...browserRest } = browser ?? {}
   const coreBrowser = { enabled: browserEnabled ?? true, ...browserRest }
   return {
     ...rest,

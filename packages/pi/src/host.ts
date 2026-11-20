@@ -23,7 +23,7 @@
 import { appendFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { CONCURRENT_TOOLS, CoreError, browserReadiness, createWebStack, type HostAdapter, type ToolSpec, type WebStack } from '@agents-web-search/core'
+import { CONCURRENT_TOOLS, CoreError, browserReadiness, createWebStack, installChromium, type HostAdapter, type ToolSpec, type WebStack } from '@agents-web-search/core'
 import { hasSessionHistory, readBrowserGuard, readGuardFile, writeGuardFile } from './guard-state.ts'
 import { getAgentDir } from '@earendil-works/pi-coding-agent'
 import type {
@@ -36,6 +36,7 @@ import type {
 
 import { toCoreConfig, type PiConfig } from './config.ts'
 import { isLoopbackEndpoint, searxngAlive, searxngEndpoint, searxngInEngines, startLocalSearxng } from './searxng-health.ts'
+import { runWebSearchSetup, scriptPath } from './setup-command.ts'
 import { toTypeBoxParameters } from './schema.ts'
 import { truncateForPi } from './truncate.ts'
 
@@ -170,7 +171,7 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
   const GUARD_STATUS_KEY = ' browser-guard'
 
   const host: HostAdapter = {
-    identity: { name: 'pi', version: '1.4.13' },
+    identity: { name: 'pi', version: '1.4.14' },
     config: coreConfig,
     paths: { stateDir, tempDir: join(stateDir, 'temp') },
 
@@ -345,11 +346,12 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
         searxngDown.value = endpoint
         // 2) Session log entry (persists, not sent to the LLM).
         try { pi.appendEntry('web-search-searxng-down', { endpoint }) } catch { /* best-effort */ }
-        // 3) Operator hint (TUI).
+        // 3) Operator hint (TUI) — with the copy-paste-ready absolute path
+        // of the installer from this checkout.
         if (ctx.hasUI && typeof ctx.ui?.notify === 'function') {
           ctx.ui.notify(
             `agents-web-search: SearXNG недоступен на ${endpoint}${autostartFailed ? ' (автозапуск через systemd не помог)' : ''} — поиск пойдёт через ddg+bing. `
-              + 'Поднять локальный инстанс: скрипт scripts/searxng/install.sh из пакета agents-web-search '
+              + 'Поднять локальный инстанс: `bash ' + scriptPath('searxng/install.sh') + '` '
               + '(native venv + systemd user unit, без docker). Отключить проверку: убрать searxng из search.engines в web-search.json.',
             'warning',
           )
@@ -361,18 +363,51 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
     // only when the module is enabled, at most once per process): playwright
     // missing or the Chromium binary not downloaded is a setup problem, not
     // a runtime error — give the operator the exact fix before the first
-    // browser tool fails.
+    // browser tool fails. With browser.autoDownload (default true) the
+    // no-privilege half of the fix — the Chromium binary download — is
+    // performed right here in the background; the root half (system
+    // libraries) is only ever printed as the distro-specific command.
     if (event.reason === 'startup' && !isSubagentProcess && (config.browser?.enabled ?? true) && !browserProbeFired) {
       browserProbeFired = true
-      void browserReadiness()
-        .then((readiness) => {
-          if (readiness.hint === undefined) return
-          try { pi.appendEntry('web-search-browser-setup', { hint: readiness.hint }) } catch { /* best-effort */ }
-          if (ctx.hasUI && typeof ctx.ui?.notify === 'function') {
-            ctx.ui.notify(`agents-web-search: браузер недоступен — ${readiness.hint}`, 'warning')
+      void (async () => {
+        const notify = (text: string, level: 'info' | 'warning'): void => {
+          if (ctx.hasUI && typeof ctx.ui?.notify === 'function') ctx.ui.notify(`agents-web-search: ${text}`, level)
+        }
+        const log = (payload: Record<string, unknown>): void => {
+          try { pi.appendEntry('web-search-browser-setup', payload) } catch { /* best-effort */ }
+        }
+        let readiness = await browserReadiness()
+        if (readiness.hint === undefined) return
+        if (
+          readiness.playwright
+          && !readiness.chromium
+          && (config.browser?.autoDownload ?? true)
+        ) {
+          notify('Chromium не скачан — скачиваю в фоне (playwright install chromium, ~150MB в ~/.cache)…', 'info')
+          const install = await installChromium()
+          if (install.ok) {
+            readiness = await browserReadiness()
+            if (readiness.hint === undefined) {
+              log({ installed: true })
+              notify('Chromium установлен — браузерные инструменты готовы.', 'info')
+              return
+            }
+          } else {
+            log({ error: install.error ?? 'chromium install failed' })
+            notify(
+              `не удалось скачать Chromium в фоне (${(install.error ?? '').slice(0, 200)}) — `
+              + 'попробуйте вручную: `bash ' + scriptPath('browser/install.sh') + '`',
+              'warning',
+            )
+            return
           }
-        })
-        .catch(() => {})
+        }
+        log({ hint: readiness.hint })
+        const setupHint = readiness.hint.includes('not downloaded')
+          ? `${readiness.hint} Или одной командой: bash ${scriptPath('browser/install.sh')}`
+          : readiness.hint
+        notify(`браузер недоступен — ${setupHint}`, 'warning')
+      })().catch(() => {}) // never surface a probe/install failure beyond the warning path
     }
   })
 
@@ -451,6 +486,26 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
           : 'browser-guard:ssrf — SSRF guard back on: private/reserved addresses are blocked (BROWSER_SSRF_BLOCKED).',
         browserGuard.ssrf ? 'warning' : 'info',
       )
+    },
+  })
+
+  pi.registerCommand('web-search-setup', {
+    description:
+      'Install everything the web-search plugin can install without root (Chromium binary, local SearXNG); print the exact command for the root-only parts (system libraries).',
+    handler: async (_args, ctx) => {
+      ctx.ui.notify('web-search-setup: проверяю и дозаполняю компоненты (может занять минуты)…', 'info')
+      try {
+        const lines = await runWebSearchSetup({ config })
+        for (const line of lines) {
+          ctx.ui.notify(`web-search-setup: ${line.text}`, line.level)
+          try { pi.appendEntry('web-search-setup', { text: line.text, level: line.level }) } catch { /* best-effort */ }
+        }
+      } catch (error) {
+        ctx.ui.notify(
+          `web-search-setup: сорвалось — ${error instanceof Error ? error.message : String(error)}. Отдельно: bash ${scriptPath('browser/install.sh')} и bash ${scriptPath('searxng/install.sh')}`,
+          'warning',
+        )
+      }
     },
   })
 

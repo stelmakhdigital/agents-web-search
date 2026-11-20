@@ -4,6 +4,38 @@
 версии пакетов синхронизированы (`dsh`, `pi`; `contract` — внутренний,
 private).
 
+## [1.4.14] — 2026-11-20
+
+### Added
+
+- **`/web-search-setup`** — одна команда доустанавливает всё, что ставится
+  без root: бинарник Chromium (idempotent-скрипт адаптера) и локальный
+  SearXNG (venv + systemd user unit) — только если движок в цепочке, а юнит
+  никогда не ставился; установленный-but-mёртвый юнит стартует через
+  systemd, без переустановки. Root-слой (системные библиотеки) не выполняется
+  никогда — в отчёте печатается команда под дистрибутив.
+- **`browser.autoDownload`** (default true): readiness на startup находит
+  «playwright есть, бинарника нет» — скачивание Chromium уходит в фон
+  (`installChromium` из ядра 1.4.0: домашний кэш, без прав, идемпотентно),
+  результат — notify + запись в сессионный лог; при успехе повторный probe,
+  если остались только библиотеки — warning с их дистрибутивной командой.
+- Warning'и настроенческих проблем содержат полные абсолютные пути скриптов
+  установки (copy-paste-ready `bash ~/.pi/agent/git/.../scripts/browser/install.sh`).
+
+### Изменено
+
+- ядро 1.4.0: `installChromium()`, дистрибутивно-точные hints
+  (`/etc/os-release` → apt/dnf/pacman/apk).
+- version: root и `@agents-web-search/pi` → `1.4.14` (+ identity pi); пины
+  установки и пины ядра → `@v1.4.14`.
+
+### Тесты
+
+- `browser-autodownload.test.ts` (mock installer, 4 сценария),
+  `setup-command.test.ts` (7 вет orchestration), config strip; probe-тест
+  закреплён на `autoDownload: false`, чтобы тестовые прогоны никогда не
+  качали браузеры.
+
 ## [1.4.13] — 2026-11-19
 
 ### Fixed

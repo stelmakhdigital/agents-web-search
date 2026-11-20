@@ -18,8 +18,8 @@ a git repo in **one command** (it clones into its install dir and runs
 ships inside it):
 
 ```sh
-pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.4.13   # user scope
-pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.4.13  # project scope
+pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.4.14   # user scope
+pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.4.14  # project scope
 pi list                                                # verify
 # update: pi update (for a pinned ref — fetch origin <ref>)
 ```
@@ -71,6 +71,7 @@ All config is local. Secrets stay out of the file (env or explicit keys):
   "history": { "history": true, "cacheClear": true, "stats": true },
   "browser": {
     "enabled": true,                  // browser module ships ON (set false to opt out)
+    "autoDownload": true,             // binary missing → background `playwright install chromium` at startup (no root; system libraries are only ever printed, never installed)
     "headless": true,
     "approval": "navigate",           // "never" | "navigate" (default) | "all"
     "allowPrivateNetworks": false     // SSRF guard: private/reserved hosts are blocked by default
@@ -111,7 +112,18 @@ All config is local. Secrets stay out of the file (env or explicit keys):
   (`web-search-browser-setup`) — no launch, no download, no blocking.
   Since core 1.3.1 the probe also catches the bare-Linux case "binary
   present, system libraries missing" (`ldd` parse, no launch) and names the
-  libraries + the `--with-deps` / apt fix.
+  libraries + the `--with-deps` / apt (or dnf/pacman/apk — detected from
+  `/etc/os-release`) fix.
+- **Setup automation, one command**: `/web-search-setup` runs the plugin's
+  own installers — downloads the Chromium binary (via the adapter's
+  playwright) and, when `searxng` is in `search.engines` but the unit was
+  never installed, the native SearXNG install (venv + systemd user unit);
+  an installed-but-stopped instance is started via systemd instead of
+  re-cloned. Root-requiring steps (system libraries) are never executed —
+  the report prints the distro-specific command. Independently,
+  `browser.autoDownload` (default true) makes the plain "binary missing"
+  case self-heal at startup: the download runs once in the background
+  (user cache, idempotent) and the result is notified.
 - **SSRF guard**: by default the browser (and `web_fetch` / `web_platform_search`) **blocks private/reserved addresses** — LAN (`192.168.x.x`, `10.x`, …) and loopback (`127.0.0.1`) ⇒ `Error (BROWSER_SSRF_BLOCKED)`. To reach local services (dev dashboards, local APIs) set `"allowPrivateNetworks": true` in the corresponding section (`browser` / `fetch` / `platforms`). This is a network boundary, not a permission gate — the `/browser-guard` toggle does not affect it. For the **browser** only, `/browser-guard:ssrf` flips the guard for the current session without touching the file (footer badge `🔓 SSRF OFF`); the state is persistent like the other guard toggles (`guard-state.json`, survives `/reload` and `pi -c`), and a new session falls back to the config value.
 
 ## SearXNG (local instance)
@@ -130,6 +142,10 @@ bind `127.0.0.1:8080` = the core's `SEARXNG_DEFAULT_ENDPOINT`):
 git clone https://github.com/stelmakhdigital/agents-web-search.git \
   && agents-web-search/scripts/searxng/install.sh
 ```
+
+Inside a running pi session the same install is triggered by
+`/web-search-setup` (it skips the clone when the unit already exists and
+just starts the unit).
 
 What it does: creates a venv at `~/.pi/agent/web-search/searxng/venv`,
 clones the official SearXNG repo (the PyPI package `searxng` is an
