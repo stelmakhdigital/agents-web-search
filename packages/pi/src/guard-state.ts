@@ -28,7 +28,7 @@ export function readGuardFile(file: string): Record<string, Record<string, unkno
 
 /** Atomic write of the whole `guard-state.json` map. */
 export function writeGuardFile(file: string, all: Record<string, Record<string, unknown>>): void {
-  const tmp = `${file}.tmp`
+  const tmp = `${file}.tmp.${process.pid}`
   writeFileSync(tmp, JSON.stringify(all, null, 2))
   renameSync(tmp, file)
 }

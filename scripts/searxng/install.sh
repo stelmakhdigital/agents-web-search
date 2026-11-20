@@ -31,14 +31,16 @@ VENV="$SEARXNG_HOME/venv"
 SRC="$SEARXNG_HOME/src"
 SETTINGS="$SEARXNG_HOME/settings.yml"
 UNIT_NAME="searxng.service"
-UNIT_FILE="$HOME/.config/systemd/user/$UNIT_NAME"
+# XDG-aware (совпадает с searxng-health.ts searxngUnitFile): systemd ищет юниты
+# в $XDG_CONFIG_HOME/systemd/user, когда переменная задана.
+UNIT_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/$UNIT_NAME"
 # macOS LaunchAgent (label/plist path shared with packages/pi/src/searxng-health.ts).
 LAUNCHD_LABEL="com.agents-web-search.searxng"
 PLIST_FILE="$HOME/Library/LaunchAgents/$LAUNCHD_LABEL.plist"
 REPO_URL="https://github.com/searxng/searxng"
 # Rolling release: pin the source revision so an install is reproducible and
 # a future upstream commit cannot break the JSON API or the build. `update`
-# re-clones at the latest master and refreshes this pin.
+# moves the checkout to the latest master (the pin governs fresh installs only).
 PINNED_REF="ac11e14c5edf995d4d2f066bfb885a614f52a978"
 BIND_HOST="127.0.0.1"
 BIND_PORT="8080"
@@ -47,11 +49,6 @@ log() { echo "searxng-install: $*"; }
 fail() { echo "searxng-install: ERROR: $*" >&2; exit 1; }
 
 need() { command -v "$1" >/dev/null 2>&1 || fail "$1 is required but not found in PATH"; }
-
-python_bin() {
-  need python3
-  "$VENV/bin/python"
-}
 
 systemd_available() {
   command -v systemctl >/dev/null 2>&1 && systemctl --user >/dev/null 2>&1
@@ -151,6 +148,8 @@ server:
 valkey:
   url: false
 EOF
+  # secret_key внутри — читаем только владельцем.
+  chmod 600 "$SETTINGS"
 }
 
 # The WSGI runner: the same `application` object uwsgi would serve, hosted
@@ -204,14 +203,20 @@ ensure_launch_agent() {
 </plist>
 EOF
   launchctl bootout "$(launchd_job)" 2>/dev/null || true
-  # bootout is async: an immediate bootstrap can fail with "Bootstrap failed:
-  # 5: Input/output error" while the old job is still unloading — retry.
+  # bootout асинхронен: немедленный bootstrap может падать с "Bootstrap failed:
+  # 5: Input/output error", пока старое задание выгружается — ретраи с шагом.
   local i
-  for i in 1 2 3 4 5; do
+  for i in 1 2 3 4 5 6 7 8; do
     launchctl bootstrap "$(launchd_target)" "$PLIST_FILE" 2>/dev/null && break
     sleep 1
   done
-  launchctl print "$(launchd_job)" >/dev/null 2>&1 || fail "LaunchAgent не загрузился (launchctl print gui/$(id -u)/$LAUNCHD_LABEL)"
+  # bootstrap мог пройти без кода возврата (job уже загружен) — финальная
+  # проверка print/kickstart прежде, чем объявлять провал после unload.
+  if ! launchctl print "$(launchd_job)" >/dev/null 2>&1; then
+    sleep 3
+    launchctl bootstrap "$(launchd_target)" "$PLIST_FILE" 2>/dev/null || true
+  fi
+  launchctl print "$(launchd_job)" >/dev/null 2>&1 || fail "LaunchAgent не загружен (launchctl print $(launchd_job)) — сервис выгружен, повтори install"
   log "LaunchAgent loaded (login-start via RunAtLoad): launchctl print $(launchd_job)"
 }
 
@@ -274,7 +279,7 @@ do_update() {
   need git
   log "resolving the latest master"
   local new_ref
-  new_ref="$(git ls-remote origin refs/heads/master | cut -f1)"
+  new_ref="$(git -C "$SRC" ls-remote origin refs/heads/master | cut -f1)"
   [ -n "$new_ref" ] || fail "could not resolve master via git ls-remote"
   local current_ref
   current_ref="$(git -C "$SRC" rev-parse HEAD)"

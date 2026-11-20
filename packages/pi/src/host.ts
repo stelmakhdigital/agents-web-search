@@ -21,6 +21,7 @@
  */
 
 import { appendFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { join } from 'node:path'
 
 import { CONCURRENT_TOOLS, CoreError, browserReadiness, createWebStack, installChromium, type HostAdapter, type ToolSpec, type WebStack } from '@agents-web-search/core'
@@ -170,8 +171,11 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
   // truncates from the right, so a leading-space key surfaces first.
   const GUARD_STATUS_KEY = ' browser-guard'
 
+  // Версия идентичности — из package.json рядом (один источник правды;
+  // хардкод расходится при релизах, а UA `pi/<version>` — антибот-сигнал ядра).
+  const pkgVersion = (createRequire(import.meta.url)('../package.json') as { version: string }).version
   const host: HostAdapter = {
-    identity: { name: 'pi', version: '1.4.16' },
+    identity: { name: 'pi', version: pkgVersion },
     config: coreConfig,
     paths: { stateDir, tempDir: join(stateDir, 'temp') },
 
