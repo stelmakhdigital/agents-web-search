@@ -7,8 +7,10 @@
  * a small timeout) and only warns through the host UI.
  *
  * The instance is installed/started by `scripts/searxng/install.sh`
- * (repo root): a native (no-docker) SearXNG venv + a systemd user unit
- * listening on `127.0.0.1:8080` — the core's `SEARXNG_DEFAULT_ENDPOINT`.
+ * (repo root): a native (no-docker) SearXNG venv + a service-managed
+ * instance listening on `127.0.0.1:8080` — the core's
+ * `SEARXNG_DEFAULT_ENDPOINT`. Service manager per platform: systemd user
+ * unit on Linux, LaunchAgent (launchd) on macOS.
  * @module @agents-web-search/pi/searxng-health
  */
 
@@ -25,6 +27,9 @@ export const SEARXNG_HEALTH_TIMEOUT_MS = 800
 
 /** The systemd user unit installed by `scripts/searxng/install.sh`. */
 export const SEARXNG_UNIT_NAME = 'searxng.service'
+
+/** The LaunchAgent label installed by `scripts/searxng/install.sh` on macOS. */
+export const SEARXNG_LAUNCHD_LABEL = 'com.agents-web-search.searxng'
 
 /**
  * Whether the searxng engine participates in the search chain. When
@@ -86,29 +91,25 @@ export function searxngUnitFile(): string {
   return join(xdg, 'systemd', 'user', SEARXNG_UNIT_NAME)
 }
 
-/**
- * Autostart a dead local instance through the systemd user unit installed
- * by `scripts/searxng/install.sh`: `systemctl --user start searxng.service`
- * (idempotent — a no-op on a running unit), then poll `/healthz` while
- * waitress boots. Silent by design: every failure path returns false and
- * the caller falls back to the plain warning. Never throws.
- * @param endpoint - the endpoint to wait on (loopback expected).
- * @param bootWaitMs - how long to poll health after a successful start.
- * @returns `'up'` when the instance answers `/healthz` after the attempt,
- * `'skipped'` when autostart does not apply here (unit never installed),
- * `'failed'` when a start was attempted and did not bring the instance up.
- */
-export type SearxngStartOutcome = 'up' | 'skipped' | 'failed'
+/** Path of the macOS LaunchAgent plist installed by install.sh. */
+export function searxngLaunchAgentFile(): string {
+  return join(homedir(), 'Library', 'LaunchAgents', `${SEARXNG_LAUNCHD_LABEL}.plist`)
+}
 
-export async function startLocalSearxng(endpoint: string, bootWaitMs = 15_000): Promise<SearxngStartOutcome> {
-  if (!existsSync(searxngUnitFile())) return 'skipped' // never installed / non-systemd host
-  const started = await new Promise<boolean>((resolve) => {
+/** Path of the service definition this platform's autostart expects. */
+export function searxngServiceFile(platform: NodeJS.Platform = process.platform): string {
+  return platform === 'darwin' ? searxngLaunchAgentFile() : searxngUnitFile()
+}
+
+/** Run a command to completion; true on exit code 0, false on error/timeout. */
+function spawnOk(cmd: string, args: string[], timeoutMs = 8_000): Promise<boolean> {
+  return new Promise((resolve) => {
     try {
-      const child = spawn('systemctl', ['--user', 'start', SEARXNG_UNIT_NAME], { stdio: 'ignore' })
+      const child = spawn(cmd, args, { stdio: 'ignore' })
       const timer = setTimeout(() => {
         child.kill()
         resolve(false)
-      }, 8_000)
+      }, timeoutMs)
       child.on('error', () => {
         clearTimeout(timer)
         resolve(false)
@@ -121,6 +122,56 @@ export async function startLocalSearxng(endpoint: string, bootWaitMs = 15_000): 
       resolve(false)
     }
   })
+}
+
+/**
+ * Start/restart the macOS LaunchAgent: `bootstrap` registers the plist if
+ * not loaded yet (its RunAtLoad starts the instance), then `kickstart -k`
+ * (re)starts the job. A fresh `bootout` unloads asynchronously, so the pair
+ * is retried a few times ("Bootstrap failed: 5" race). Idempotent either
+ * way; the health poll in the caller decides.
+ */
+async function launchdStart(): Promise<boolean> {
+  const uid = process.getuid?.() ?? 501
+  const target = `gui/${uid}/${SEARXNG_LAUNCHD_LABEL}`
+  for (let attempt = 0; attempt < 3; attempt++) {
+    // bootstrap loads the job (RunAtLoad then starts it); a not-yet-drained
+    // bootout or an already-loaded job makes it fail — kickstart then covers
+    // the loaded-and-running case.
+    const booted = await spawnOk('launchctl', ['bootstrap', `gui/${uid}`, searxngLaunchAgentFile()])
+    const kicked = await spawnOk('launchctl', ['kickstart', '-k', target])
+    if (booted || kicked) return true
+    await new Promise((resolve) => setTimeout(resolve, 300))
+  }
+  return false
+}
+
+/**
+ * Autostart a dead local instance through the service definition installed
+ * by `scripts/searxng/install.sh`: `systemctl --user start searxng.service`
+ * on Linux, `launchctl bootstrap + kickstart -k` on macOS (both idempotent),
+ * then poll `/healthz` while waitress boots. Silent by design: every failure
+ * path returns false and the caller falls back to the plain warning.
+ * Never throws.
+ * @param endpoint - the endpoint to wait on (loopback expected).
+ * @param bootWaitMs - how long to poll health after a successful start.
+ * @returns `'up'` when the instance answers `/healthz` after the attempt,
+ * `'skipped'` when autostart does not apply here (service never installed),
+ * `'failed'` when a start was attempted and did not bring the instance up.
+ */
+export type SearxngStartOutcome = 'up' | 'skipped' | 'failed'
+
+export async function startLocalSearxng(
+  endpoint: string,
+  // Cold start = waitress boot + searx engine registration: measured ~30 s on
+  // a macOS venv; 15 s (the systemd-era default) produced false 'failed'.
+  bootWaitMs = 30_000,
+  platform: NodeJS.Platform = process.platform,
+): Promise<SearxngStartOutcome> {
+  if (!existsSync(searxngServiceFile(platform))) return 'skipped' // never installed / no service manager
+  const started = platform === 'darwin'
+    ? await launchdStart()
+    : await spawnOk('systemctl', ['--user', 'start', SEARXNG_UNIT_NAME])
   if (!started) return 'failed'
   const deadline = Date.now() + bootWaitMs
   for (;;) {

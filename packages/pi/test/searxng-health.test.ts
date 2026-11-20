@@ -13,17 +13,30 @@ import { spawn } from 'node:child_process'
 import { buildPiWebStack } from '../src/host.ts'
 import {
   SEARXNG_HEALTH_TIMEOUT_MS,
+  SEARXNG_LAUNCHD_LABEL,
   SEARXNG_UNIT_NAME,
   isLoopbackEndpoint,
   searxngAlive,
   searxngEndpoint,
   searxngInEngines,
+  searxngServiceFile,
   searxngUnitFile,
   startLocalSearxng,
 } from '../src/searxng-health.ts'
 import type { PiConfig } from '../src/config.ts'
 
 const mockSpawn = vi.mocked(spawn)
+
+// process.platform stub: the systemd tests must exercise the systemd branch
+// even on macOS CI/dev hosts (and vice versa). Restored in afterEach of each
+// describe that uses it.
+const savedPlatformDesc = Object.getOwnPropertyDescriptor(process, 'platform')
+function setPlatform(value: string): void {
+  Object.defineProperty(process, 'platform', { value, configurable: true, writable: false })
+}
+function restorePlatform(): void {
+  if (savedPlatformDesc) Object.defineProperty(process, 'platform', savedPlatformDesc)
+}
 
 describe('searxng-health (config helpers)', () => {
   it('searxngInEngines: unset engines inherit the core default chain (searxng present)', () => {
@@ -60,11 +73,13 @@ describe('startLocalSearxng (systemd autostart)', () => {
   const savedXdg = process.env.XDG_CONFIG_HOME
 
   beforeEach(async () => {
+    setPlatform('linux')
     xdgDir = await mkdtemp(join(tmpdir(), 'aws-searxng-xdg-'))
     process.env.XDG_CONFIG_HOME = xdgDir
     mockSpawn.mockReset()
   })
   afterEach(async () => {
+    restorePlatform()
     if (savedXdg === undefined) delete process.env.XDG_CONFIG_HOME
     else process.env.XDG_CONFIG_HOME = savedXdg
     await rm(xdgDir, { recursive: true, force: true })
@@ -111,6 +126,74 @@ describe('startLocalSearxng (systemd autostart)', () => {
     spawnOnce(0)
     globalThis.fetch = vi.fn(async () => { throw new Error('still down') }) as never
     await expect(startLocalSearxng('http://localhost:8080', 300)).resolves.toBe('failed')
+  })
+})
+
+describe('startLocalSearxng (macOS launchd autostart)', () => {
+  let home: string
+  const savedHome = process.env.HOME
+
+  beforeEach(async () => {
+    setPlatform('darwin')
+    home = await mkdtemp(join(tmpdir(), 'aws-searxng-home-'))
+    process.env.HOME = home
+    mockSpawn.mockReset()
+  })
+  afterEach(async () => {
+    restorePlatform()
+    if (savedHome === undefined) delete process.env.HOME
+    else process.env.HOME = savedHome
+    await rm(home, { recursive: true, force: true })
+  })
+
+  function spawnOnce(code: number | null): void {
+    mockSpawn.mockImplementation(() => {
+      const child = new EventEmitter()
+      setTimeout(() => child.emit('close', code), 5)
+      return child as never
+    })
+  }
+
+  it('serviceFile (darwin): LaunchAgent plist under ~/Library/LaunchAgents', () => {
+    expect(searxngServiceFile('darwin').endsWith(join('Library', 'LaunchAgents', SEARXNG_LAUNCHD_LABEL + '.plist'))).toBe(true)
+    expect(searxngServiceFile('linux')).toBe(searxngUnitFile())
+  })
+
+  it('plist absent: skipped, launchctl never spawned', async () => {
+    globalThis.fetch = vi.fn(async () => { throw new Error('down') }) as never
+    await expect(startLocalSearxng('http://localhost:8080', 300, 'darwin')).resolves.toBe('skipped')
+    expect(mockSpawn).not.toHaveBeenCalled()
+  })
+
+  it('plist present: bootstrap + kickstart, health up', async () => {
+    await mkdir(join(home, 'Library', 'LaunchAgents'), { recursive: true })
+    await writeFile(searxngServiceFile('darwin'), '<plist/>')
+    spawnOnce(0)
+    globalThis.fetch = vi.fn(async () => new Response('OK', { status: 200 })) as never
+    await expect(startLocalSearxng('http://localhost:8080', 300, 'darwin')).resolves.toBe('up')
+    const cmds = mockSpawn.mock.calls.map((c) => c[0])
+    expect(cmds).toEqual(['launchctl', 'launchctl'])
+    expect(mockSpawn.mock.calls[0]?.[1]?.[0]).toBe('bootstrap')
+    expect(mockSpawn.mock.calls[1]?.[1]?.[0]).toBe('kickstart')
+  })
+
+  it('bootstrap loads the job (RunAtLoad starts it) even when kickstart fails: up', async () => {
+    await mkdir(join(home, 'Library', 'LaunchAgents'), { recursive: true })
+    await writeFile(searxngServiceFile('darwin'), '<plist/>')
+    mockSpawn
+      .mockImplementationOnce(() => { const c = new EventEmitter(); setTimeout(() => c.emit('close', 0), 5); return c as never }) // bootstrap ok
+      .mockImplementationOnce(() => { const c = new EventEmitter(); setTimeout(() => c.emit('close', 1), 5); return c as never }) // kickstart: job still spawning — fine, RunAtLoad covers it
+    globalThis.fetch = vi.fn(async () => new Response('OK', { status: 200 })) as never
+    await expect(startLocalSearxng('http://localhost:8080', 300, 'darwin')).resolves.toBe('up')
+  })
+
+  it('bootstrap and kickstart both fail (x3): failed', async () => {
+    await mkdir(join(home, 'Library', 'LaunchAgents'), { recursive: true })
+    await writeFile(searxngServiceFile('darwin'), '<plist/>')
+    spawnOnce(1)
+    globalThis.fetch = vi.fn(async () => new Response('OK', { status: 200 })) as never
+    await expect(startLocalSearxng('http://localhost:8080', 300, 'darwin')).resolves.toBe('failed')
+    expect(mockSpawn).toHaveBeenCalledTimes(6) // 3 retries x (bootstrap + kickstart)
   })
 })
 
@@ -176,6 +259,7 @@ describe('session_start health-check (real host, mocked fetch)', () => {
     mockSpawn.mockReset()
   })
   afterEach(async () => {
+    restorePlatform()
     if (savedEnv === undefined) delete process.env.PI_CODING_AGENT_DIR
     else process.env.PI_CODING_AGENT_DIR = savedEnv
     if (savedXdg === undefined) delete process.env.XDG_CONFIG_HOME
@@ -327,6 +411,7 @@ describe('session_start autostart (real host, mocked systemctl)', () => {
   const savedDepth = process.env.PI_SUBAGENT_DEPTH
 
   beforeEach(async () => {
+    setPlatform('linux') // this describe exercises the systemd host path
     agentDir = await mkdtemp(join(tmpdir(), 'aws-searxng-host-'))
     xdgDir = await mkdtemp(join(tmpdir(), 'aws-searxng-xdg-host-'))
     process.env.PI_CODING_AGENT_DIR = agentDir
@@ -335,6 +420,7 @@ describe('session_start autostart (real host, mocked systemctl)', () => {
     mockSpawn.mockReset()
   })
   afterEach(async () => {
+    restorePlatform()
     if (savedEnv === undefined) delete process.env.PI_CODING_AGENT_DIR
     else process.env.PI_CODING_AGENT_DIR = savedEnv
     if (savedXdg === undefined) delete process.env.XDG_CONFIG_HOME
@@ -430,7 +516,7 @@ describe('session_start autostart (real host, mocked systemctl)', () => {
     const { handlers } = build({})
     await handlers.session_start?.[0]?.({ reason: 'startup' }, makeCtx(notifications))
     await vi.waitFor(
-      () => expect(notifications.some((n) => n.message.includes('автозапуск через systemd не помог'))).toBe(true),
+      () => expect(notifications.some((n) => n.message.includes('автозапуск через сервис-менеджер не помог'))).toBe(true),
       { timeout: 3_000 },
     )
   })

@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url'
 import { browserReadiness } from '@agents-web-search/core'
 
 import type { PiConfig } from './config.ts'
-import { searxngAlive, searxngEndpoint, searxngInEngines, searxngUnitFile, startLocalSearxng } from './searxng-health.ts'
+import { isLoopbackEndpoint, searxngAlive, searxngEndpoint, searxngInEngines, searxngServiceFile, startLocalSearxng } from './searxng-health.ts'
 
 /** The absolute path of this package's `scripts/<name>` (repo layout). */
 export function scriptPath(name: string): string {
@@ -67,7 +67,7 @@ export async function runWebSearchSetup(deps: SetupDeps): Promise<SetupLine[]> {
   const runScript = deps.runScript ?? runSetupScript
   const readiness = deps.readiness ?? browserReadiness
   const health = deps.searxngHealth ?? searxngAlive
-  const unitInstalled = deps.unitInstalled ?? ((): boolean => existsSync(searxngUnitFile()))
+  const unitInstalled = deps.unitInstalled ?? ((): boolean => existsSync(searxngServiceFile()))
   const startUnit = deps.startUnit ?? (async (endpoint: string): Promise<boolean> => (await startLocalSearxng(endpoint)) === 'up')
 
   // 1) Browser binaries: the script is idempotent and re-runs are cheap.
@@ -91,7 +91,7 @@ export async function runWebSearchSetup(deps: SetupDeps): Promise<SetupLine[]> {
     if (await health(endpoint)) {
       lines.push({ text: `SearXNG: отвечает на ${endpoint} (здоров)`, level: 'info' })
     } else if (!unitInstalled()) {
-      lines.push({ text: 'SearXNG: юнит не установлен — ставлю (venv + systemd user unit; займёт минуты)', level: 'info' })
+      lines.push({ text: 'SearXNG: сервис не установлен — ставлю (venv + systemd unit / LaunchAgent; займёт минуты)', level: 'info' })
       const out = await runScript('searxng/install.sh')
       const healthy = await health(endpoint)
       lines.push(
@@ -100,10 +100,10 @@ export async function runWebSearchSetup(deps: SetupDeps): Promise<SetupLine[]> {
           : { text: `SearXNG: установка завершена, но ${endpoint} не отвечает — \`bash ${scriptPath('searxng/install.sh')} doctor\`\n${out}`, level: 'warning' },
       )
     } else if (await startUnit(endpoint)) {
-      lines.push({ text: `SearXNG: поднят через systemd и отвечает на ${endpoint}`, level: 'info' })
+      lines.push({ text: `SearXNG: поднят сервис-менеджером и отвечает на ${endpoint}`, level: 'info' })
     } else {
       lines.push({
-        text: `SearXNG: юнит установлен, но ${endpoint} не отвечает — \`bash ${scriptPath('searxng/install.sh')} doctor\``,
+        text: `SearXNG: сервис установлен, но ${endpoint} не отвечает — \`bash ${scriptPath('searxng/install.sh')} doctor\``,
         level: 'warning',
       })
     }

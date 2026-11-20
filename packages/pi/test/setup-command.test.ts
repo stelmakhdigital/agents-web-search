@@ -76,7 +76,7 @@ describe('runWebSearchSetup', () => {
       startUnit: async () => true,
     })
     expect(ranScripts).toEqual(['browser/install.sh'])
-    expect(lines.some((l) => l.text.includes('поднят через systemd'))).toBe(true)
+    expect(lines.some((l) => l.text.includes('поднят сервис-менеджером'))).toBe(true)
   })
 
   it('searxng down + unit present + start fails: doctor hint', async () => {

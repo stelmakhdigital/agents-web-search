@@ -4,6 +4,28 @@
 версии пакетов синхронизированы (`dsh`, `pi`; `contract` — внутренний,
 private).
 
+## [1.4.16] — 2026-11-20
+
+### Добавлено
+
+- **SearXNG на macOS нативно**: install-скрипт определяет ОС и ставит
+  инстанс в сервис-менеджер — systemd user unit на Linux, LaunchAgent
+  (`com.agents-web-search.searxng`, старт по логину, KeepAlive) на macOS;
+  `status`/`doctor`/`uninstall`/`update` работают с обоими.
+- Автозапуск мёртвого инстанса на macOS: `launchctl bootstrap` +
+  `kickstart -k` с ретраями на гонку bootout/bootstrap (успешный bootstrap
+  считается стартом — RunAtLoad).
+
+### Исправлено
+
+- Таймаут ожидания холодного старта поднят с 15 с до 30 с: регистрация
+  движков searx на venv занимает до 30 с, автозапуск ложно падал в
+  `failed` при поднимающемся инстансе.
+- Формулировки health-check/подсказок: «systemd» → «сервис-менеджер
+  (systemd unit / LaunchAgent)».
+- version: root и `@agents-web-search/pi` → `1.4.16` (+ identity pi);
+  пины установки → `@v1.4.16`.
+
 ## [1.4.15] — 2026-11-21
 
 ### Изменено

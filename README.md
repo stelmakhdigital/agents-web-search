@@ -71,8 +71,8 @@ Pi installs a git repo in **one command** (it clones into its install dir
 and runs `npm install` itself):
 
 ```sh
-pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.4.15   # user scope
-pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.4.15  # project scope
+pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.4.16   # user scope
+pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.4.16  # project scope
 pi list
 # update: pi update (for a pinned ref — fetch origin <ref>)
 ```
@@ -99,8 +99,9 @@ playwright установленного адаптера) или `npx playwright
 мгновенно; молчащий хост срезается ~3-секундным connect-гардом, после чего
 движок уходит в cooldown).
 
-Установка одной командой (нативно, без docker: Python venv + systemd
-**user** unit, bind `127.0.0.1:8080` — `SEARXNG_DEFAULT_ENDPOINT` ядра):
+Установка одной командой (нативно, без docker: Python venv + сервис-менеджер
+ОС — systemd **user** unit на Linux, LaunchAgent на macOS; bind
+`127.0.0.1:8080` — `SEARXNG_DEFAULT_ENDPOINT` ядра):
 
 ```sh
 git clone https://github.com/stelmakhdigital/agents-web-search.git \
@@ -111,10 +112,12 @@ git clone https://github.com/stelmakhdigital/agents-web-search.git \
 официальный репозиторий SearXNG (PyPI-пакет `searxng` — посторонний
 MCP-сервер, не используется), ставит движок + waitress, генерирует
 минимальный `settings.yml` (`search.formats: [html, json]`,
-`limiter: false`, `valkey.url: false`, персистентный secret key) и запускает
-`searxng.service` как systemd user unit. Идемпотентен; `update` подтягивает
-свежий исходник (rolling release), `status` — состояние юнита и пробы,
-`uninstall` удаляет всё. Нужны python ≥ 3.9 и git; без systemd user-сессии
+`limiter: false`, `valkey.url: false`, персистентный secret key) и ставит
+инстанс в сервис-менеджер ОС: `searxng.service` (systemd user unit) или
+`com.agents-web-search.searxng` (macOS LaunchAgent, старт по логину;
+`launchctl bootstrap` + `kickstart`, идемпотентно). Идемпотентен; `update`
+подтягивает свежий исходник (rolling release), `status` — состояние сервиса и
+пробы, `uninstall` удаляет всё. Нужны python ≥ 3.9 и git; без сервис-менеджера
 скрипт печатает команду ручного запуска.
 
 **Health-check на старте**: на `session_start` (reason `startup`, один раз
@@ -123,12 +126,13 @@ MCP-сервер, не используется), ставит движок + wa
 блокируется.
 
 **Автозапуск** (`searxng.autostart`, по умолчанию `true`): если проверка
-нашла loopback-инстанс мёртвым, адаптер сначала поднимает его через
-systemd-user unit от install-скрипта (`systemctl --user start
-searxng.service`, идемпотентно) и ждёт ответа `/healthz` (до 15 с, в фоне).
-Успех — одно info-уведомление «поднят автоматически», пометка про fallback
-модель не уходит. Попытка молча пропускается, когда применять нечего:
-unit-файл отсутствует (не устанавливали / нет systemd), endpoint удалённый
+нашла loopback-инстанс мёртвым, адаптер сначала поднимает его через сервис от
+install-скрипта (Linux: `systemctl --user start searxng.service`; macOS:
+`launchctl bootstrap` + `kickstart -k`, идемпотентно) и ждёт ответа `/healthz`
+(до 30 с, в фоне — холодный старт waitress + регистрация движков занимает
+до ~30 с). Успех — одно info-уведомление «поднят автоматически», пометка про fallback
+модель не уходит. Попытка молча пропускается, когда применять нечего: сервис
+не установлен (не ставили / нет сервис-менеджера), endpoint удалённый
 или `searxng.autostart: false`; упоминание «автозапуск не помог» появляется
 только когда попытка реально была и не удалась.
 

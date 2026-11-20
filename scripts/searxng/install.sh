@@ -4,16 +4,19 @@
 #
 # Installs SearXNG from the official git repository into a Python venv,
 # generates a minimal settings.yml (JSON API enabled, limiter off,
-# loopback bind) and runs it as a systemd user unit on 127.0.0.1:8080 —
-# the core's SEARXNG_DEFAULT_ENDPOINT. Idempotent: re-running skips what
-# is already in place and never breaks an installed instance.
+# loopback bind) and runs it as a service-managed instance on
+# 127.0.0.1:8080 — the core's SEARXNG_DEFAULT_ENDPOINT. Service manager is
+# picked by OS: systemd user unit on Linux, LaunchAgent (launchd, starts at
+# login) on macOS. Idempotent: re-running skips what is already in place and
+# never breaks an installed instance.
 #
 # Usage:
 #   install.sh [install|update]   default: install
 #   install.sh uninstall          stop, disable, remove unit + files
 #   install.sh status             unit state + health probe
 #   install.sh doctor             full environment/instance check (PASS/FAIL/WARN)
-#   install.sh linger             enable login-linger (start the unit at boot)
+#   install.sh linger             enable login-linger (start the unit at boot);
+#                                 no-op on macOS (LaunchAgent already starts at login)
 #
 # The PyPI package named `searxng` is an unrelated MCP server — do not
 # use it; the engine itself is only distributed via git (rolling release).
@@ -29,6 +32,9 @@ SRC="$SEARXNG_HOME/src"
 SETTINGS="$SEARXNG_HOME/settings.yml"
 UNIT_NAME="searxng.service"
 UNIT_FILE="$HOME/.config/systemd/user/$UNIT_NAME"
+# macOS LaunchAgent (label/plist path shared with packages/pi/src/searxng-health.ts).
+LAUNCHD_LABEL="com.agents-web-search.searxng"
+PLIST_FILE="$HOME/Library/LaunchAgents/$LAUNCHD_LABEL.plist"
 REPO_URL="https://github.com/searxng/searxng"
 # Rolling release: pin the source revision so an install is reproducible and
 # a future upstream commit cannot break the JSON API or the build. `update`
@@ -50,6 +56,18 @@ python_bin() {
 systemd_available() {
   command -v systemctl >/dev/null 2>&1 && systemctl --user >/dev/null 2>&1
 }
+
+# Service backend by OS: launchd on macOS (always present), systemd user
+# session on Linux, none elsewhere (manual-start instructions are printed).
+service_backend() {
+  case "$(uname -s)" in
+    Darwin) echo launchd ;;
+    *) if systemd_available; then echo systemd; else echo none; fi ;;
+  esac
+}
+
+launchd_target() { echo "gui/$(id -u)"; }
+launchd_job() { echo "gui/$(id -u)/$LAUNCHD_LABEL"; }
 
 ensure_dirs() { mkdir -p "$SEARXNG_HOME" "$VENV"; }
 
@@ -140,11 +158,64 @@ EOF
 RUNNER_SNIPPET="from searx.webapp import application; import waitress; waitress.serve(application, host='$BIND_HOST', port=$BIND_PORT)"
 
 ensure_unit() {
-  if ! systemd_available; then
-    log "systemd user session is not available — skipping the unit; start the instance manually with:"
-    log "  SEARXNG_SETTINGS_PATH='$SETTINGS' '$VENV/bin/python' -c \"$RUNNER_SNIPPET\""
-    return
-  fi
+  case "$(service_backend)" in
+    launchd) ensure_launch_agent ;;
+    systemd) ensure_systemd_unit ;;
+    none)
+      log "no service manager (systemd user session / launchd) available — skipping autostart; run the instance manually with:"
+      log "  SEARXNG_SETTINGS_PATH='$SETTINGS' '$VENV/bin/python' -c \"$RUNNER_SNIPPET\""
+      ;;
+  esac
+}
+
+# macOS LaunchAgent: RunAtLoad starts the instance at login, KeepAlive
+# restarts it on a crash. Label/plist path must match
+# packages/pi/src/searxng-health.ts (SEARXNG_LAUNCHD_LABEL).
+ensure_launch_agent() {
+  log "writing $PLIST_FILE"
+  mkdir -p "$(dirname "$PLIST_FILE")" "$SEARXNG_HOME/logs"
+  cat > "$PLIST_FILE" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$LAUNCHD_LABEL</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$VENV/bin/python</string>
+    <string>-c</string>
+    <string>$RUNNER_SNIPPET</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>SEARXNG_SETTINGS_PATH</key><string>$SETTINGS</string>
+  </dict>
+  <key>WorkingDirectory</key><string>$SRC</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key><false/>
+    <key>Crashed</key><true/>
+  </dict>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>StandardOutPath</key><string>$SEARXNG_HOME/logs/launchd.out.log</string>
+  <key>StandardErrorPath</key><string>$SEARXNG_HOME/logs/launchd.err.log</string>
+</dict>
+</plist>
+EOF
+  launchctl bootout "$(launchd_job)" 2>/dev/null || true
+  # bootout is async: an immediate bootstrap can fail with "Bootstrap failed:
+  # 5: Input/output error" while the old job is still unloading — retry.
+  local i
+  for i in 1 2 3 4 5; do
+    launchctl bootstrap "$(launchd_target)" "$PLIST_FILE" 2>/dev/null && break
+    sleep 1
+  done
+  launchctl print "$(launchd_job)" >/dev/null 2>&1 || fail "LaunchAgent не загрузился (launchctl print gui/$(id -u)/$LAUNCHD_LABEL)"
+  log "LaunchAgent loaded (login-start via RunAtLoad): launchctl print $(launchd_job)"
+}
+
+ensure_systemd_unit() {
   log "writing $UNIT_FILE"
   mkdir -p "$(dirname "$UNIT_FILE")"
   cat > "$UNIT_FILE" <<EOF
@@ -166,6 +237,21 @@ EOF
   systemctl --user daemon-reload
   systemctl --user enable --now "$UNIT_NAME"
   log "unit enabled and started: systemctl --user status $UNIT_NAME"
+}
+
+service_restart() {
+  case "$(service_backend)" in
+    launchd)
+      launchctl kickstart -k "$(launchd_job)" 2>/dev/null && log "service restarted"
+      ;;
+    systemd)
+      if systemctl --user is-active --quiet "$UNIT_NAME" 2>/dev/null; then
+        systemctl --user restart "$UNIT_NAME" && log "unit restarted"
+      fi
+      ;;
+    none) return 0 ;;
+  esac
+  return 0
 }
 
 do_install() {
@@ -200,14 +286,15 @@ do_update() {
     git -C "$SRC" checkout --quiet --detach FETCH_HEAD
     ensure_packages
   fi
-  if systemd_available && systemctl --user is-active --quiet "$UNIT_NAME" 2>/dev/null; then
-    systemctl --user restart "$UNIT_NAME"
-    log "unit restarted"
-  fi
+  service_restart
 }
 
 do_uninstall() {
-  if systemd_available && [ -f "$UNIT_FILE" ]; then
+  if [ "$(service_backend)" = launchd ]; then
+    launchctl bootout "$(launchd_job)" 2>/dev/null || true
+    rm -f "$PLIST_FILE"
+    log "LaunchAgent removed"
+  elif systemd_available && [ -f "$UNIT_FILE" ]; then
     systemctl --user disable --now "$UNIT_NAME" 2>/dev/null || true
     rm -f "$UNIT_FILE"
     systemctl --user daemon-reload
@@ -224,17 +311,27 @@ do_uninstall() {
 
 do_status() {
   echo "instance home: $SEARXNG_HOME"
-  if systemd_available; then
-    echo "unit: $(systemctl --user is-active "$UNIT_NAME" 2>/dev/null; true)"
-    if loginctl show-user "$USER" -p Linger 2>/dev/null | grep -q '=yes'; then
-      echo "linger: on (the unit starts at boot)"
-    else
-      echo "linger: off — the unit will NOT start after a reboot until you log in with a systemd session"
-      echo "        (enable with: $0 linger)"
-    fi
-  else
-    echo "unit: systemd user session unavailable"
-  fi
+  case "$(service_backend)" in
+    launchd)
+      if launchctl print "$(launchd_job)" >/dev/null 2>&1; then
+        echo "LaunchAgent: loaded ($(launchd_job)); starts at login (RunAtLoad)"
+      else
+        echo "LaunchAgent: not loaded (run install)"
+      fi
+      ;;
+    systemd)
+      echo "unit: $(systemctl --user is-active "$UNIT_NAME" 2>/dev/null; true)"
+      if loginctl show-user "$USER" -p Linger 2>/dev/null | grep -q '=yes'; then
+        echo "linger: on (the unit starts at boot)"
+      else
+        echo "linger: off — the unit will NOT start after a reboot until you log in with a systemd session"
+        echo "        (enable with: $0 linger)"
+      fi
+      ;;
+    none)
+      echo "unit: no service manager available"
+      ;;
+  esac
   echo -n "health (http://$BIND_HOST:$BIND_PORT/healthz): "
   if curl -fsS -o /dev/null -m 2 "http://$BIND_HOST:$BIND_PORT/healthz" 2>/dev/null; then
     echo "OK"
@@ -250,6 +347,10 @@ do_status() {
 }
 
 do_linger() {
+  if [ "$(service_backend)" = launchd ]; then
+    log "not applicable on macOS: the LaunchAgent starts the instance at every login (RunAtLoad)"
+    return
+  fi
   need loginctl
   if loginctl show-user "$USER" -p Linger 2>/dev/null | grep -q '=yes'; then
     log "linger is already on"
@@ -273,16 +374,26 @@ do_doctor() {
   check 'python >= 3.9' bash -c 'command -v python3 >/dev/null && python3 -c "import sys; sys.exit(0 if sys.version_info >= (3,9) else 1)"'
   check 'git' git --version
   check 'curl' curl --version
-  if systemd_available; then
-    check "unit $UNIT_NAME active" systemctl --user is-active --quiet "$UNIT_NAME"
-    if loginctl show-user "$USER" -p Linger 2>/dev/null | grep -q '=yes'; then
-      echo 'PASS  linger (starts at boot)'
-    else
-      echo 'WARN  linger off — the unit will not start after a reboot without a login (enable: ./install.sh linger)'
-    fi
-  else
-    echo 'WARN  systemd user session unavailable — the unit cannot be managed; start the instance manually'
-  fi
+  case "$(service_backend)" in
+    launchd)
+      if launchctl print "$(launchd_job)" >/dev/null 2>&1; then
+        echo "PASS  LaunchAgent loaded (starts at login)"
+      else
+        echo 'WARN  LaunchAgent not loaded — run install.sh install'
+      fi
+      ;;
+    systemd)
+      check "unit $UNIT_NAME active" systemctl --user is-active --quiet "$UNIT_NAME"
+      if loginctl show-user "$USER" -p Linger 2>/dev/null | grep -q '=yes'; then
+        echo 'PASS  linger (starts at boot)'
+      else
+        echo 'WARN  linger off — the unit will not start after a reboot without a login (enable: ./install.sh linger)'
+      fi
+      ;;
+    none)
+      echo 'WARN  no service manager available — the unit cannot be managed; start the instance manually'
+      ;;
+  esac
   check "engine importable (venv)" "$VENV/bin/python" -c 'import searx, waitress'
   check 'health endpoint' curl -fsS -o /dev/null -m 3 "http://$BIND_HOST:$BIND_PORT/healthz"
   check 'JSON API responds' curl -fsS -o /dev/null -m 5 "http://$BIND_HOST:$BIND_PORT/search?q=ping&format=json"

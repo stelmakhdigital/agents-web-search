@@ -18,8 +18,8 @@ a git repo in **one command** (it clones into its install dir and runs
 ships inside it):
 
 ```sh
-pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.4.15   # user scope
-pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.4.15  # project scope
+pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.4.16   # user scope
+pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.4.16  # project scope
 pi list                                                # verify
 # update: pi update (for a pinned ref — fetch origin <ref>)
 ```
@@ -116,11 +116,12 @@ All config is local. Secrets stay out of the file (env or explicit keys):
   `/etc/os-release`) fix.
 - **Setup automation, one command**: `/web-search-setup` runs the plugin's
   own installers — downloads the Chromium binary (via the adapter's
-  playwright) and, when `searxng` is in `search.engines` but the unit was
-  never installed, the native SearXNG install (venv + systemd user unit);
-  an installed-but-stopped instance is started via systemd instead of
-  re-cloned. Root-requiring steps (system libraries) are never executed —
-  the report prints the distro-specific command. Independently,
+  playwright) and, when `searxng` is in `search.engines` but the service was
+  never installed, the native SearXNG install (venv + systemd unit /
+  LaunchAgent); an installed-but-stopped instance is started via the service
+  manager instead of re-cloned. Root-requiring steps (system libraries) are
+  never executed — the report prints the distro-specific command.
+  Independently,
   `browser.autoDownload` (default true) makes the plain "binary missing"
   case self-heal at startup: the download runs once in the background
   (user cache, idempotent) and the result is notified.
@@ -145,8 +146,9 @@ instance is optional — when it is not running the search simply goes to
 `ddg`/`bing` (a refused connection fails immediately; a silently dropping
 host is cut by a ~3 s connect guard, then the engine cools down).
 
-One-command install (native, no docker: Python venv + systemd **user** unit,
-bind `127.0.0.1:8080` = the core's `SEARXNG_DEFAULT_ENDPOINT`):
+One-command install (native, no docker: Python venv + the OS service manager
+— systemd **user** unit on Linux, LaunchAgent on macOS; bind
+`127.0.0.1:8080` = the core's `SEARXNG_DEFAULT_ENDPOINT`):
 
 ```bash
 git clone https://github.com/stelmakhdigital/agents-web-search.git \
@@ -161,10 +163,12 @@ What it does: creates a venv at `~/.pi/agent/web-search/searxng/venv`,
 clones the official SearXNG repo (the PyPI package `searxng` is an
 unrelated MCP server — not used), installs the engine + waitress, writes a
 minimal `settings.yml` (`search.formats: [html, json]`, `limiter: false`,
-`valkey.url: false`, persistent secret key) and starts `searxng.service` as
-a systemd user unit. Idempotent; `update` pulls the latest source (rolling
-release), `status` shows the unit state + probes, `uninstall` removes
-everything. Requires python ≥ 3.9, git; without a systemd user session it
+`valkey.url: false`, persistent secret key) and installs the instance as an
+OS service: `searxng.service` (systemd user unit) or
+`com.agents-web-search.searxng` (macOS LaunchAgent — starts at login via
+`launchctl bootstrap` + `kickstart`, idempotent). Idempotent; `update` pulls the latest source (rolling
+release), `status` shows the service state + probes, `uninstall` removes
+everything. Requires python ≥ 3.9, git; without a service manager it
 prints the manual start command.
 
 **Startup health-check**: on `session_start` (reason `startup`, once per pi
@@ -174,12 +178,13 @@ start is never blocked.
 
 **Autostart** (`searxng.autostart`, default `true`): when the probe finds a
 loopback instance down, the adapter first tries to bring it back through
-the systemd user unit installed by `install.sh`
-(`systemctl --user start searxng.service` — idempotent), then polls
-`/healthz` while waitress boots (≤ 15 s, in the background). Success →
+the service installed by `install.sh` (Linux: `systemctl --user start
+searxng.service`; macOS: `launchctl bootstrap` + `kickstart -k` — both
+idempotent), then polls `/healthz` while waitress boots (≤ 30 s — cold
+start waits for engine registration — in the background). Success →
 one info notice (`поднят автоматически`), no fallback note for the model.
-The attempt is silently skipped when it cannot apply: the unit file is
-absent (never installed / non-systemd host), the endpoint is remote, or
+The attempt is silently skipped when it cannot apply: the service is
+absent (never installed / no service manager), the endpoint is remote, or
 `searxng.autostart: false`. Only when a start was actually attempted and
 failed does the warning mention it.
 

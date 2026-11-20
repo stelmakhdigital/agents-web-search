@@ -40,11 +40,11 @@ export interface PiOnlyConfig {
   searxng?: {
     /**
      * When the session_start health-check finds the local instance down,
-     * bring it up via the systemd user unit installed by
-     * `scripts/searxng/install.sh` (`systemctl --user start searxng.service`,
-     * idempotent), wait for it to answer `/healthz`, and report the outcome.
-     * Only loopback endpoints are autostarted; when the unit file is absent
-     * (never installed / non-systemd host) the check silently keeps the old
+     * bring it up via the service installed by
+     * `scripts/searxng/install.sh` (systemd user unit on Linux, LaunchAgent
+     * on macOS; both idempotent), wait for it to answer `/healthz`, and
+     * report the outcome. Only loopback endpoints are autostarted; when the
+     * service was never installed the check silently keeps the old
      * warn-only behavior. Default true. Disable with `false` to get pure
      * warn-only behavior (the search chain already falls through to
      * ddg+bing either way).

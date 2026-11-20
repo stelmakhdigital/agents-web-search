@@ -171,7 +171,7 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
   const GUARD_STATUS_KEY = ' browser-guard'
 
   const host: HostAdapter = {
-    identity: { name: 'pi', version: '1.4.15' },
+    identity: { name: 'pi', version: '1.4.16' },
     config: coreConfig,
     paths: { stateDir, tempDir: join(stateDir, 'temp') },
 
@@ -316,24 +316,24 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
     // only when the searxng engine participates in the chain): a dead local
     // instance is not an error — the router falls through to ddg+bing. With
     // `searxng.autostart` (default true) a down loopback instance is first
-    // brought back through the systemd user unit installed by
-    // scripts/searxng/install.sh; only if that fails (or is off/not
-    // installed) does the user get the one-time hint. Fire-and-forget: the
-    // session start is never blocked.
+    // brought back through the service installed by scripts/searxng/install.sh
+    // (systemd user unit on Linux, LaunchAgent on macOS); only if that fails
+    // (or is off/not installed) does the user get the one-time hint.
+    // Fire-and-forget: the session start is never blocked.
     if (event.reason === 'startup' && !isSubagentProcess && searxngInEngines(config)) {
       const endpoint = searxngEndpoint(config)
       const autostart = config.searxng?.autostart ?? true
       void (async () => {
         if (await searxngAlive(endpoint)) return
-        // Recovery attempt through systemd (silent 'skipped' when the unit
-        // was never installed, the endpoint is remote, or autostart is off).
+        // Recovery attempt through the service manager (silent 'skipped' when
+        // it was never installed, the endpoint is remote, or autostart is off).
         let autostartFailed = false
         if (autostart && isLoopbackEndpoint(endpoint)) {
           const outcome = await startLocalSearxng(endpoint)
           if (outcome === 'up') {
             if (ctx.hasUI && typeof ctx.ui?.notify === 'function') {
               ctx.ui.notify(
-                'agents-web-search: SearXNG был недоступен — поднят автоматически (systemd: searxng.service).',
+                'agents-web-search: SearXNG был недоступен — поднят автоматически (systemd/LaunchAgent).',
                 'info',
               )
             }
@@ -350,9 +350,9 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
         // of the installer from this checkout.
         if (ctx.hasUI && typeof ctx.ui?.notify === 'function') {
           ctx.ui.notify(
-            `agents-web-search: SearXNG недоступен на ${endpoint}${autostartFailed ? ' (автозапуск через systemd не помог)' : ''} — поиск пойдёт через ddg+bing. `
+            `agents-web-search: SearXNG недоступен на ${endpoint}${autostartFailed ? ' (автозапуск через сервис-менеджер не помог)' : ''} — поиск пойдёт через ddg+bing. `
               + 'Поднять локальный инстанс: `bash ' + scriptPath('searxng/install.sh') + '` '
-              + '(native venv + systemd user unit, без docker). Отключить проверку: убрать searxng из search.engines в web-search.json.',
+              + '(native venv + systemd unit / LaunchAgent, без docker). Отключить проверку: убрать searxng из search.engines в web-search.json.',
             'warning',
           )
         }
