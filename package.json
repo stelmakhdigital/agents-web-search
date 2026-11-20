@@ -1,7 +1,7 @@
 {
   "name": "@agents-web-search/adapters",
   "version": "1.4.16",
-  "description": "Installable root of the agents-web-search repo (git channel, decision 2026-09-21): the DSH cordis plugin (main + dsh.bundle) and the Pi extension (pi.extensions) in one package; the core ships as the pinned .vendor tarball. pnpm workspace root (pnpm-workspace.yaml; the npm `workspaces` field is intentionally absent so the Pi git-install `npm install` sees a plain package, not a workspace) \u2014 sub-packages (packages/*) are the development units.",
+  "description": "Installable root of the agents-web-search repo (git channel, decision 2026-09-21): the DSH cordis plugin (main + dsh.bundle) and the Pi extension (pi.extensions) in one package; the core ships as the pinned .vendor tarball. pnpm workspace root (pnpm-workspace.yaml; the npm `workspaces` field is intentionally absent so the Pi git-install `npm install` sees a plain package, not a workspace) — sub-packages (packages/*) are the development units.",
   "license": "MIT",
   "type": "module",
   "main": "./packages/dsh/lib/index.js",
@@ -16,7 +16,7 @@
     ]
   },
   "dependencies": {
-    "@agents-web-search/core": "file:./.vendor/agents-web-search-core-1.5.0.tgz"
+    "@agents-web-search/core": "file:./.vendor/agents-web-search-core-1.5.1.tgz"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "*",
@@ -69,6 +69,6 @@
     "build": "pnpm -r --filter \"./packages/*\" build",
     "test": "pnpm -r --filter \"./packages/*\" test",
     "typecheck": "pnpm -r --filter \"./packages/*\" typecheck",
-    "pack:core": "cd ../core-web-search && npm pack --pack-destination ../../agents-web-search/.vendor/"
+    "pack:core": "cd \"${CORE_DIR:-../core-web-search}\" && npm pack --pack-destination \"$OLDPWD/.vendor/\""
   }
 }

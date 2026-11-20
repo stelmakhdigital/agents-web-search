@@ -11,6 +11,9 @@ import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-a
 import { buildPiWebStack, type PiWebStackResult } from '../src/host.ts'
 import { CONFIG_FILE_NAME, type PiConfig } from '../src/config.ts'
 
+const PKG_VERSION = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version
+
+
 interface RegisteredTool {
   name: string
   label: string
@@ -137,7 +140,7 @@ describe('buildPiWebStack (real core + mocked Pi API)', () => {
     expect(result.stack.config.browser?.enabled).toBe(true)
     expect(result.stack.config.search.mode).toBe('fallback')
     // host identity + state dir under the agent dir
-    expect(result.host.identity).toEqual({ name: 'pi', version: '1.4.16' })
+    expect(result.host.identity).toEqual({ name: 'pi', version: PKG_VERSION })
     expect(result.host.paths.stateDir).toBe(join(agentDir, 'web-search'))
   })
 

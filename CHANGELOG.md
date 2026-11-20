@@ -4,6 +4,34 @@
 версии пакетов синхронизированы (`dsh`, `pi`; `contract` — внутренний,
 private).
 
+## [1.4.17] — 2026-11-20
+
+### Обновлено
+
+- Ядро `@agents-web-search/core` перенумеровано на 1.5.1 (venдорный tarball
+  пересобран): SSRF-блок-лист пополнился 100.64.0.0/10 (CGNAT/Tailscale),
+  198.18.0.0/15, 224.0.0.0/4, 240.0.0.0/4; ключ кэша поиска учитывает
+  maxResults; recordSearch вернул searchId при upsert; доки ядра стали
+  честнее про trustEnvProxy/DNS-rebinding/redirect-ходы браузера.
+
+### Исправлено
+
+- SearXNG `install.sh update`: `git ls-remote` выполняется с `-C "$SRC"`
+  (раньше брал origin текущей директории и падал из любого git-каталога).
+- Путь systemd-user-юнита в install.sh уважает `XDG_CONFIG_HOME` (совпал с
+  searxng-health.ts; раньше при заданном XDG установка падала на
+  `systemctl --user enable`).
+- `settings.yml` с secret_key пишется с правами 600.
+- Bootstrap LaunchAgent: 8 ретраев и финальная проверка `launchctl print`
+  с дозагрузкой — при медленной выгрузке старого job сервис больше не
+  остаётся выгруженным.
+- `identity.version` адаптера читается из package.json (раньше хардкод
+  кочевал по релизам вручную и мог врать в User-Agent).
+- tmp-файл guard-state с pid (два процесса не затирают друг друга).
+- Добавлен контракт-тест констант `install.sh` ↔ `searxng-health.ts`
+  (label, unit, plist, XDG-путь, host/port); `pack:core` поддерживает
+  `CORE_DIR` для не-соседнего расположения репо ядра.
+
 ## [1.4.16] — 2026-11-20
 
 ### Добавлено

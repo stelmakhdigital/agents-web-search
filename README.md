@@ -71,8 +71,8 @@ Pi installs a git repo in **one command** (it clones into its install dir
 and runs `npm install` itself):
 
 ```sh
-pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.4.16   # user scope
-pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.4.16  # project scope
+pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.4.17   # user scope
+pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.4.17  # project scope
 pi list
 # update: pi update (for a pinned ref — fetch origin <ref>)
 ```
