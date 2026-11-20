@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 #
+# ПОРЯДОК РЕЛИЗА (важно для CI): CI адаптеров сверяет пины в README ядра с
+# версией pi-адаптера в ЭТОМ репозитории. Сначала пушьте пины в core-web-search,
+# ЗАТЕМ мержите адаптер — иначе шаг «Check core README pins» ловит гонку
+# (ядро ещё не догнало версию) и падает. Перезапуск — любой коммит в master.
+#
 # Update the adapter version pins in the core repo READMEs
 # (core-web-search/README.md, README.en.md): every
 # `agents-web-search.git@vX.Y.Z` becomes `@v<current>`.
