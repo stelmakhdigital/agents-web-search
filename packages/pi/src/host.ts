@@ -24,57 +24,18 @@ import { appendFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 
-import { CONCURRENT_TOOLS, CoreError, browserReadiness, createWebStack, installChromium, type HostAdapter, type ToolSpec, type WebStack } from '@agents-web-search/core'
-import { hasSessionHistory, readBrowserGuard, readGuardFile, writeGuardFile } from './guard-state.ts'
+import { CoreError, createWebStack, type HostAdapter, type ToolSpec, type WebStack } from '@agents-web-search/core'
+import { registerBrowserGuard } from './browser-guard.ts'
 import { getAgentDir } from '@earendil-works/pi-coding-agent'
 import type {
-  AgentToolResult,
-  AgentToolUpdateCallback,
   ExtensionAPI,
   ExtensionContext,
-  ToolExecutionMode,
 } from '@earendil-works/pi-coding-agent'
 
 import { toCoreConfig, type PiConfig } from './config.ts'
-import { isLoopbackEndpoint, searxngAlive, searxngEndpoint, searxngInEngines, startLocalSearxng } from './searxng-health.ts'
+import { toPiTool, toolEnabled } from './pi-tool.ts'
+import { runStartupProbes } from './startup-probes.ts'
 import { runWebSearchSetup, scriptPath } from './setup-command.ts'
-import { toTypeBoxParameters } from './schema.ts'
-import { truncateForPi } from './truncate.ts'
-
-/** Tools that may run concurrently (read-only; the core single-flights search). */
-
-// Browser readiness is probed at most once per process: session_start
-// 'startup' fires once per real session, and a repeat would only re-notify
-// the same setup problem.
-let browserProbeFired = false
-
-/** Human-readable labels for `Available tools` / TUI display. */
-const TOOL_LABELS: Record<string, string> = {
-  web_search: 'Web search',
-  web_fetch: 'Web fetch',
-  web_platform_search: 'Platform search',
-  web_history: 'Web history',
-  web_search_stats: 'Web stats',
-  web_cache_clear: 'Web cache clear',
-  browser_open: 'Browser open',
-  browser_navigate: 'Browser navigate',
-  browser_snapshot: 'Browser snapshot',
-  browser_click: 'Browser click',
-  browser_type: 'Browser type',
-  browser_evaluate: 'Browser evaluate',
-  browser_screenshot: 'Browser screenshot',
-  browser_close: 'Browser close',
-}
-
-/** One-line `Available tools` prompt snippets (pi system prompt). */
-const TOOL_SNIPPETS: Record<string, string> = {
-  web_search: 'Multi-engine web search (DuckDuckGo, Bing, …) with cached results',
-  web_fetch: 'Fetch a web page as markdown (cached, SSRF-guarded)',
-  web_platform_search: 'Platform-specific search: GitHub, Reddit, YouTube, …',
-  web_history: 'Review recent web searches and fetches from the local store',
-  web_search_stats: 'Show web search/page cache statistics',
-  web_cache_clear: 'Clear the web search/page cache',
-}
 
 /** The built stack plus its host adapter and lifecycle handle. */
 export interface PiWebStackResult {
@@ -128,48 +89,18 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
     }
   }
 
-  // Browser approval gate toggles. Persistent in the shared
-  // `<agentDir>/guard-state.json` (same file and key convention as
-  // pi-extensions bash-guard/dir-guard) — survives /reload, pi -c and
-  // session switches; a NEW session (pi) resets to the defaults in
-  // session_start. `disabled` means the user explicitly turned confirmations
-  // OFF (`/browser-guard` or `--browser-guard-off`) → approve allows
-  // immediately. The fail-closed rules (no context / no dialog UI ⇒ deny)
-  // apply only when the gate is enabled. Subagent processes deliberately get
-  // a fresh (enabled) state — the file is NOT read there.
-  //
-  // pi 0.99.0 nuance: process startup (both `pi` and `pi -c`) emits
-  // session_start with reason "startup"; a continuation (pi -c / --session)
-  // is recognized by a non-empty session history.
-  //
-  // `ssrf` — runtime override of the browser SSRF guard (allow
-  // private/reserved addresses). The config-file value
-  // (`browser.allowPrivateNetworks` in web-search.json) is the default; the
-  // persisted toggle overrides it for the session lifetime, with the same
-  // persistence/reset rules as `disabled`/`skipClickType` (a new session
-  // falls back to the config value).
-  const cfgAllowPrivate = config.browser?.allowPrivateNetworks ?? false
-  const FRESH_GUARD = { disabled: false, skipClickType: false, ssrf: cfgAllowPrivate }
-  const guardStateFile = join(agentDir, 'guard-state.json')
+  // Browser approval gate: state, footer badge, session reset and the two
+  // confirmation toggles live in browser-guard.ts (persisted in the shared
+  // guard-state.json, parity with pi-extensions bash-guard/dir-guard).
+  // `ssrf` is the runtime override of the browser SSRF guard; the config value
+  // (`browser.allowPrivateNetworks`) is its default — the toggle logic needs
+  // the live browser session and therefore stays here.
   const isSubagentProcess = Number(process.env.PI_SUBAGENT_DEPTH ?? '0') >= 1
-  const browserGuard = isSubagentProcess
-    ? { ...FRESH_GUARD }
-    : readBrowserGuard(guardStateFile, cfgAllowPrivate)
-  const saveBrowserGuard = (): void => {
-    if (isSubagentProcess) return
-    // Read-modify-write: the file is shared with the pi-extensions guards
-    // (bash-guard, dir-guard); the fresh read keeps their entries intact.
-    const all = readGuardFile(guardStateFile)
-    all['browser-guard'] = {
-      disabled: browserGuard.disabled,
-      skipClickType: browserGuard.skipClickType,
-      ssrf: browserGuard.ssrf,
-    }
-    writeGuardFile(guardStateFile, all)
-  }
-  // Leading space: pi's footer sorts status entries alphabetically and
-  // truncates from the right, so a leading-space key surfaces first.
-  const GUARD_STATUS_KEY = ' browser-guard'
+  const guard = registerBrowserGuard(pi, {
+    agentDir,
+    cfgAllowPrivate: config.browser?.allowPrivateNetworks ?? false,
+    isSubagent: isSubagentProcess,
+  })
 
   // Версия идентичности — из package.json рядом (один источник правды;
   // хардкод расходится при релизах, а UA `pi/<version>` — антибот-сигнал ядра).
@@ -185,7 +116,7 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
     registerTools: (specs: readonly ToolSpec[]) => {
       for (const spec of specs) {
         if (!toolEnabled(spec.name, config)) continue
-        pi.registerTool(toPiTool(spec, ctxSlot, lastCtx, searxngDown))
+        pi.registerTool(toPiTool(spec, { config, ctxSlot, lastCtx, searxngDown }))
       }
       // Pi has no tool-unregistration API in v0.1: the disposer is a no-op;
       // session_shutdown closes the stack (store/browser) instead.
@@ -203,7 +134,7 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
     approve: async (request: { kind: string; description: string }) => {
       // Explicit session-level opt-out (`/browser-guard` / `--browser-guard-off`):
       // the user has already decided — no dialog, including without a UI.
-      if (browserGuard.disabled) return true
+      if (guard.state.disabled) return true
       if (ctxSlot.current === undefined) {
         throw new CoreError(
           `browser ${request.kind.slice('browser_'.length)} requires approval, but no tool execution context is available — the action is denied (fail-closed)`,
@@ -215,7 +146,7 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
         // (the click/type relaxation below applies only to dialog sessions).
         return false
       }
-      if (browserGuard.skipClickType && (request.kind === 'browser_click' || request.kind === 'browser_type')) {
+      if (guard.state.skipClickType && (request.kind === 'browser_click' || request.kind === 'browser_type')) {
         return true
       }
       return ctxSlot.current.ui.confirm(
@@ -269,180 +200,13 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
     dispose: () => stack.dispose(),
   }
 
-  // --- browser-guard: session toggle for the approval gate -----------------
-  const refreshGuardStatus = (ctx: ExtensionContext): void => {
-    if (!ctx.hasUI) return
-    const parts: string[] = []
-    if (browserGuard.disabled) parts.push(' 🌐 BR OFF ')
-    else if (browserGuard.skipClickType) parts.push(' 🖱 C/T OFF ')
-    if (browserGuard.ssrf) parts.push(' 🔓 SSRF OFF ')
-    if (parts.length === 0) {
-      ctx.ui.setStatus(GUARD_STATUS_KEY, undefined)
-      return
-    }
-    const { theme } = ctx.ui
-    ctx.ui.setStatus(GUARD_STATUS_KEY, theme.bg('toolErrorBg', theme.bold(theme.fg('error', parts.join('')))))
-  }
-
-  pi.registerFlag('browser-guard-off', {
-    description: 'Start the session with browser confirmations disabled (approval gate off for this session).',
-    type: 'boolean',
-    default: false,
-  })
-
+  // ОДИН session_start-хендлер на расширение: сначала правила сброса и бейдж
+  // browser-guard, затем проверки окружения (SearXNG, браузер).
   pi.on('session_start', (event, ctx) => {
-    // Новая сессия (startup с пустой историей, new) → дефолты (врата ON) +
-    // persist; продолжение (pi -c / --session / resume / reload / fork) →
-    // сохранённое состояние (factory уже перечитал guard-state.json).
-    // Субагент не сбрасывает. (parity with bash-guard/dir-guard,
-    // shouldResetGuards in pi-extensions)
-    const shouldReset =
-      !isSubagentProcess &&
-      event.reason !== 'resume' &&
-      event.reason !== 'reload' &&
-      event.reason !== 'fork' &&
-      !((event.reason === 'startup' || event.reason === undefined) && hasSessionHistory(ctx))
-    if (shouldReset) {
-      browserGuard.disabled = false
-      browserGuard.skipClickType = false
-      browserGuard.ssrf = cfgAllowPrivate
-      saveBrowserGuard()
+    guard.onSessionStart(event, ctx)
+    if (event.reason === 'startup') {
+      runStartupProbes(pi, config, ctx, { isSubagent: isSubagentProcess, searxngDown })
     }
-    if (event.reason === 'startup' && pi.getFlag('browser-guard-off') === true && !browserGuard.disabled) {
-      browserGuard.disabled = true
-      saveBrowserGuard()
-    }
-    // Sync the badge on every reason (incl. "reload": the factory re-runs and
-    // the state is restored from guard-state.json).
-    refreshGuardStatus(ctx)
-
-    // SearXNG health-check (startup only, never in subagent processes, and
-    // only when the searxng engine participates in the chain): a dead local
-    // instance is not an error — the router falls through to ddg+bing. With
-    // `searxng.autostart` (default true) a down loopback instance is first
-    // brought back through the service installed by scripts/searxng/install.sh
-    // (systemd user unit on Linux, LaunchAgent on macOS); only if that fails
-    // (or is off/not installed) does the user get the one-time hint.
-    // Fire-and-forget: the session start is never blocked.
-    if (event.reason === 'startup' && !isSubagentProcess && searxngInEngines(config)) {
-      const endpoint = searxngEndpoint(config)
-      const autostart = config.searxng?.autostart ?? true
-      void (async () => {
-        if (await searxngAlive(endpoint)) return
-        // Recovery attempt through the service manager (silent 'skipped' when
-        // it was never installed, the endpoint is remote, or autostart is off).
-        let autostartFailed = false
-        if (autostart && isLoopbackEndpoint(endpoint)) {
-          const outcome = await startLocalSearxng(endpoint)
-          if (outcome === 'up') {
-            if (ctx.hasUI && typeof ctx.ui?.notify === 'function') {
-              ctx.ui.notify(
-                'agents-web-search: SearXNG был недоступен — поднят автоматически (systemd/LaunchAgent).',
-                'info',
-              )
-            }
-            return
-          }
-          autostartFailed = outcome === 'failed'
-        }
-        // 1) The model must know results will come from the fallback: the
-        // first web_search of the session carries an explanatory note.
-        searxngDown.value = endpoint
-        // 2) Session log entry (persists, not sent to the LLM).
-        try { pi.appendEntry('web-search-searxng-down', { endpoint }) } catch { /* best-effort */ }
-        // 3) Operator hint (TUI) — with the copy-paste-ready absolute path
-        // of the installer from this checkout.
-        if (ctx.hasUI && typeof ctx.ui?.notify === 'function') {
-          ctx.ui.notify(
-            `agents-web-search: SearXNG недоступен на ${endpoint}${autostartFailed ? ' (автозапуск через сервис-менеджер не помог)' : ''} — поиск пойдёт через ddg+bing. `
-              + 'Поднять локальный инстанс: `bash ' + scriptPath('searxng/install.sh') + '` '
-              + '(native venv + systemd unit / LaunchAgent, без docker). Отключить проверку: убрать searxng из search.engines в web-search.json.',
-            'warning',
-          )
-        }
-      })().catch(() => {}) // never surface a probe/start failure beyond the warning path
-    }
-
-    // Browser-module readiness (startup only, never in subagent processes,
-    // only when the module is enabled, at most once per process): playwright
-    // missing or the Chromium binary not downloaded is a setup problem, not
-    // a runtime error — give the operator the exact fix before the first
-    // browser tool fails. With browser.autoDownload (default true) the
-    // no-privilege half of the fix — the Chromium binary download — is
-    // performed right here in the background; the root half (system
-    // libraries) is only ever printed as the distro-specific command.
-    if (event.reason === 'startup' && !isSubagentProcess && (config.browser?.enabled ?? true) && !browserProbeFired) {
-      browserProbeFired = true
-      void (async () => {
-        const notify = (text: string, level: 'info' | 'warning'): void => {
-          if (ctx.hasUI && typeof ctx.ui?.notify === 'function') ctx.ui.notify(`agents-web-search: ${text}`, level)
-        }
-        const log = (payload: Record<string, unknown>): void => {
-          try { pi.appendEntry('web-search-browser-setup', payload) } catch { /* best-effort */ }
-        }
-        let readiness = await browserReadiness()
-        if (readiness.hint === undefined) return
-        if (
-          readiness.playwright
-          && !readiness.chromium
-          && (config.browser?.autoDownload ?? true)
-        ) {
-          notify('Chromium не скачан — скачиваю в фоне (playwright install chromium, ~150MB в ~/.cache)…', 'info')
-          const install = await installChromium()
-          if (install.ok) {
-            readiness = await browserReadiness()
-            if (readiness.hint === undefined) {
-              log({ installed: true })
-              notify('Chromium установлен — браузерные инструменты готовы.', 'info')
-              return
-            }
-          } else {
-            log({ error: install.error ?? 'chromium install failed' })
-            notify(
-              `не удалось скачать Chromium в фоне (${(install.error ?? '').slice(0, 200)}) — `
-              + 'попробуйте вручную: `bash ' + scriptPath('browser/install.sh') + '`',
-              'warning',
-            )
-            return
-          }
-        }
-        log({ hint: readiness.hint })
-        const setupHint = readiness.hint.includes('not downloaded')
-          ? `${readiness.hint} Или одной командой: bash ${scriptPath('browser/install.sh')}`
-          : readiness.hint
-        notify(`браузер недоступен — ${setupHint}`, 'warning')
-      })().catch(() => {}) // never surface a probe/install failure beyond the warning path
-    }
-  })
-
-  pi.registerCommand('browser-guard', {
-    description: 'Toggle browser action confirmations (approval gate) for this session.',
-    handler: async (_args, ctx) => {
-      browserGuard.disabled = !browserGuard.disabled
-      saveBrowserGuard()
-      refreshGuardStatus(ctx)
-      ctx.ui.notify(
-        browserGuard.disabled
-          ? 'browser-guard OFF — browser actions run without confirmations. Remembered: survives /reload and pi -c; a new session starts with the gate on. Run /browser-guard again to re-enable.'
-          : 'browser-guard back on — gated browser actions will ask for confirmation.',
-        browserGuard.disabled ? 'warning' : 'info',
-      )
-    },
-  })
-
-  pi.registerCommand('browser-guard:click', {
-    description: 'Toggle confirmations for browser_click/browser_type only (navigate/evaluate keep asking; needs the "all" approval policy).',
-    handler: async (_args, ctx) => {
-      browserGuard.skipClickType = !browserGuard.skipClickType
-      saveBrowserGuard()
-      refreshGuardStatus(ctx)
-      ctx.ui.notify(
-        browserGuard.skipClickType
-          ? 'browser-guard: click/type confirmations OFF (navigate/evaluate still ask). Remembered: survives /reload and pi -c; a new session starts with confirmations on. Run /browser-guard:click again to re-enable.'
-          : 'browser-guard: click/type confirmations back on.',
-        browserGuard.skipClickType ? 'warning' : 'info',
-      )
-    },
   })
 
   const stack = createWebStack(host)
@@ -460,12 +224,12 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
     const origOpen = manager.open.bind(manager)
     manager.open = (async (agent?: unknown, options?: Parameters<typeof origOpen>[1], signal?: AbortSignal) => {
       const session = await origOpen(agent, options, signal)
-      ;(session as unknown as { allowPrivateNetworks: boolean }).allowPrivateNetworks = browserGuard.ssrf
+      ;(session as unknown as { allowPrivateNetworks: boolean }).allowPrivateNetworks = guard.state.ssrf
       return session
     }) as typeof manager.open
   }
   const setSsrf = (allow: boolean): void => {
-    browserGuard.ssrf = allow
+    guard.state.ssrf = allow
     const live = stack.browser?.session?.()
     if (live !== undefined) (live as unknown as { allowPrivateNetworks: boolean }).allowPrivateNetworks = allow
   }
@@ -481,14 +245,14 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
         )
         return
       }
-      setSsrf(!browserGuard.ssrf)
-      saveBrowserGuard()
-      refreshGuardStatus(ctx)
+      setSsrf(!guard.state.ssrf)
+      guard.save()
+      guard.refresh(ctx)
       ctx.ui.notify(
-        browserGuard.ssrf
+        guard.state.ssrf
           ? 'browser-guard:ssrf — SSRF guard OFF: private/reserved addresses (LAN, 127.0.0.1) are allowed. Remembered: survives /reload and pi -c; a new session falls back to the config value (browser.allowPrivateNetworks). Run /browser-guard:ssrf again to re-enable the guard.'
           : 'browser-guard:ssrf — SSRF guard back on: private/reserved addresses are blocked (BROWSER_SSRF_BLOCKED).',
-        browserGuard.ssrf ? 'warning' : 'info',
+        guard.state.ssrf ? 'warning' : 'info',
       )
     },
   })
@@ -518,84 +282,5 @@ export function buildPiWebStack(pi: ExtensionAPI, config: PiConfig): PiWebStackR
     host,
     disposeTools: disposeRegistered,
     dispose: () => void stack.dispose(),
-  }
-}
-
-/**
- * Apply the `platforms.enabled` / `history.*` tool switches
- * (parity with dsh-web-automation): `false` disables the corresponding
- * tool registration (absent ⇒ enabled).
- */
-function toolEnabled(name: string, config: PiConfig): boolean {
-  if (name === 'web_platform_search') return config.platforms?.enabled !== false
-  if (name === 'web_history') return config.history?.history !== false
-  if (name === 'web_cache_clear') return config.history?.cacheClear !== false
-  if (name === 'web_search_stats') return config.history?.stats !== false
-  return true
-}
-
-/** Project one core `ToolSpec` to a Pi `ToolDefinition`. */
-function toPiTool(
-  spec: ToolSpec,
-  ctxSlot: { current: ExtensionContext | undefined },
-  lastCtx: { current: ExtensionContext | undefined },
-  searxngDown: { value?: string },
-) {
-  return {
-    name: spec.name,
-    label: TOOL_LABELS[spec.name] ?? spec.name,
-    description: spec.description,
-    ...(TOOL_SNIPPETS[spec.name] !== undefined
-      ? { promptSnippet: TOOL_SNIPPETS[spec.name] }
-      : spec.name.startsWith('browser_')
-        ? { promptSnippet: `Browser automation: ${spec.name.slice('browser_'.length)} (Playwright)` }
-        : {}),
-    parameters: toTypeBoxParameters(spec.parameters as never),
-    executionMode: (CONCURRENT_TOOLS.has(spec.name) ? 'parallel' : 'sequential') as ToolExecutionMode,
-    async execute(
-      _toolCallId: string,
-      params: unknown,
-      signal: AbortSignal | undefined,
-      onUpdate: AgentToolUpdateCallback<unknown> | undefined,
-      ctx: ExtensionContext,
-    ) {
-      const previousCtx = ctxSlot.current
-      ctxSlot.current = ctx
-      lastCtx.current = ctx
-      try {
-        const controller = new AbortController()
-        const onAbort = () => controller.abort()
-        signal?.addEventListener('abort', onAbort, { once: true })
-        try {
-          const out = await spec.execute(params, {
-            signal: controller.signal,
-            onUpdate: (partial) =>
-              onUpdate?.({ content: [{ type: 'text', text: partial.text }], details: undefined }),
-          })
-          if (out.isError) {
-            // Pi error convention: throw — the runtime reports isError.
-            throw new Error(out.text)
-          }
-          let text = out.text
-          // The startup health-check found the local SearXNG dead: explain
-          // the fallback to the model once, on the first web_search result.
-          if (spec.name === 'web_search' && searxngDown.value !== undefined) {
-            text += `\n\nNote: the local SearXNG instance at ${searxngDown.value} is unreachable — `
-              + 'results came from the ddg/bing fallback. Install or repair the instance with '
-              + 'agents-web-search scripts/searxng/install.sh, or remove searxng from search.engines.'
-            searxngDown.value = undefined
-          }
-          const result: AgentToolResult<unknown> = {
-            content: [{ type: 'text', text: truncateForPi(text) }],
-            details: out.details,
-          }
-          return result
-        } finally {
-          signal?.removeEventListener('abort', onAbort)
-        }
-      } finally {
-        ctxSlot.current = previousCtx
-      }
-    },
   }
 }
