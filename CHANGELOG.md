@@ -4,6 +4,20 @@
 версии пакетов синхронизированы (`dsh`, `pi`; `contract` — внутренний,
 private).
 
+## [1.4.15] — 2026-11-21
+
+### Изменено
+
+- Ядро 1.5.0 — антибот-гигиена браузера из коробки: `navigator.webdriver`
+  снимается флагом запуска, user-agent строится из реальной версии сборки
+  (без токена `HeadlessChrome`), headless ходит полным Chromium в
+  new-headless с автооткатом на shell. Headless-запуск Авито больше не
+  упирается в «Доступ ограничен».
+- Новые опции `browser.headlessMode` / `browser.userAgent` /
+  `browser.launchArgs` (пробрасываются в ядро как есть).
+- version: root и `@agents-web-search/pi` → `1.4.15` (+ identity pi); пины
+  установки и пины ядра → `@v1.4.15`.
+
 ## [1.4.14] — 2026-11-20
 
 ### Added

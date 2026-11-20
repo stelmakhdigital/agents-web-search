@@ -18,8 +18,8 @@ a git repo in **one command** (it clones into its install dir and runs
 ships inside it):
 
 ```sh
-pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.4.14   # user scope
-pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.4.14  # project scope
+pi install https://github.com/stelmakhdigital/agents-web-search.git@v1.4.15   # user scope
+pi install -l https://github.com/stelmakhdigital/agents-web-search.git@v1.4.15  # project scope
 pi list                                                # verify
 # update: pi update (for a pinned ref — fetch origin <ref>)
 ```
@@ -124,6 +124,16 @@ All config is local. Secrets stay out of the file (env or explicit keys):
   `browser.autoDownload` (default true) makes the plain "binary missing"
   case self-heal at startup: the download runs once in the background
   (user cache, idempotent) and the result is notified.
+- **Anti-bot hygiene ships on** (core ≥ 1.5.0, zero config): the automation
+  marker (`navigator.webdriver`) is dropped, the context user-agent is built
+  from the real Chromium version with the `HeadlessChrome` token removed, and
+  headless runs the full Chromium build in new-headless mode (auto-fallback
+  to the classic shell if only the shell was downloaded). Sites that reject a
+  bare headless shell (Avito's "Доступ ограничен") now open headlessly out of
+  the box. Tunables: `browser.headlessMode` (`chrome`|`shell`),
+  `browser.userAgent`, `browser.launchArgs`. To watch the browser while the
+  agent works, set `browser.headless: false` — the window opens on your
+  desktop (X11/Wayland host).
 - **SSRF guard**: by default the browser (and `web_fetch` / `web_platform_search`) **blocks private/reserved addresses** — LAN (`192.168.x.x`, `10.x`, …) and loopback (`127.0.0.1`) ⇒ `Error (BROWSER_SSRF_BLOCKED)`. To reach local services (dev dashboards, local APIs) set `"allowPrivateNetworks": true` in the corresponding section (`browser` / `fetch` / `platforms`). This is a network boundary, not a permission gate — the `/browser-guard` toggle does not affect it. For the **browser** only, `/browser-guard:ssrf` flips the guard for the current session without touching the file (footer badge `🔓 SSRF OFF`); the state is persistent like the other guard toggles (`guard-state.json`, survives `/reload` and `pi -c`), and a new session falls back to the config value.
 
 ## SearXNG (local instance)
